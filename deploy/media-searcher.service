@@ -1,0 +1,22 @@
+# 根据实际安装位置调整 WorkingDirectory 和 Node 路径。
+[Unit]
+Description=Media Searcher web application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=media-searcher
+Group=media-searcher
+WorkingDirectory=/opt/media-searcher
+ExecStart=/usr/bin/node --env-file-if-exists=/opt/media-searcher/.env /opt/media-searcher/backend/server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+TimeoutStopSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+.DS_Store
+node_modules
+coverage
+docs
+tests
+deploy
+scripts
+*.log
+*.pem
+*.key
+*.pub

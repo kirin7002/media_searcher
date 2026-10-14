@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="集中搜索多个网盘资源来源，按平台筛选，收藏并分享你找到的资源。">
+  <meta name="theme-color" content="#f7f7f3">
+  <title>盘觅 · Media Searcher</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到内容</a>
+  <aside class="sidebar">
+    <a class="brand" href="#search" aria-label="盘觅首页"><span class="brand-mark">盘</span><span>盘觅<small>MEDIA SEARCHER</small></span></a>
+    <div class="workspace-label">你的资源工作台</div>
+    <nav aria-label="主导航">
+      <a class="nav-item active" href="#search" data-view="search"><span class="nav-icon" data-icon="search"></span>资源搜索<span class="nav-arrow">↗</span></a>
+      <a class="nav-item" href="#favorites" data-view="favorites"><span class="nav-icon" data-icon="bookmark"></span>我的收藏<span id="favorite-count" class="count">0</span></a>
+      <a class="nav-item" href="#sources" data-view="sources"><span class="nav-icon" data-icon="layers"></span>搜索来源</a>
+    </nav>
+    <section class="sidebar-note"><span data-icon="spark"></span><h3>让寻找更轻松</h3><p>一个关键词，连接多个来源。好用的链接，随手收藏。</p></section>
+    <div class="sidebar-bottom"><span id="service-dot" class="status-dot"></span><span id="service-state">正在连接服务</span><span class="version">v1.0</span></div>
+  </aside>
+  <div class="page">
+    <header class="topbar"><span id="breadcrumb">工作台 <span>/</span> 资源搜索</span><a class="github-link" href="https://github.com/kirin7002/media_searcher" target="_blank" rel="noopener noreferrer"><span data-icon="code"></span>GitHub<span>↗</span></a></header>
+    <main id="main">
+      <section id="search-view">
+        <div class="hero"><div class="eyebrow"><span class="tiny-line"></span>寻找，从这里开始</div><h1>好资源，<span>不必四处找。</span></h1><p>电影、书籍、课程、资料……把分散的网盘资源，放进同一个搜索框。</p></div>
+        <form id="search-form" class="search-box" role="search"><span data-icon="search"></span><label class="sr-only" for="query">资源关键词</label><input id="query" name="q" maxlength="60" placeholder="输入资源名称或关键词" autocomplete="off" required><button class="primary-button" type="submit">搜索资源<span data-icon="arrow"></span></button></form>
+        <div class="suggestions"><span id="suggestion-label">试着搜</span><div id="suggestion-list"></div></div>
+        <div class="filters"><div class="platform-tabs" id="platform-tabs" role="group" aria-label="筛选网盘类型"></div><div class="sort-wrap"><label class="sr-only" for="sort">排序方式</label><select id="sort"><option value="latest">最新收录</option><option value="hot">来源热度</option></select></div></div>
+        <div class="source-picker"><span>搜索来源</span><div id="source-options"></div><a href="#sources">管理来源<span>↗</span></a></div>
+        <div id="search-notices" aria-live="polite"></div>
+        <div class="results-heading"><div><h2 id="results-title">从一个关键词开始</h2><p id="results-summary">搜索公开分享链接，找到后直接打开网盘。</p></div><span class="subtle-pill"><span data-icon="link"></span>保留原始分享链接</span></div>
+        <div id="results" class="result-grid" aria-live="polite" aria-busy="false"></div>
+        <div class="load-more-wrap"><button id="load-more" class="secondary-button" hidden>加载更多结果<span>↓</span></button></div>
+      </section>
+      <section id="favorites-view" hidden><div class="section-hero"><div class="eyebrow">留下值得再看的</div><h1>我的收藏<span>。</span></h1><p>收藏保存在当前浏览器，方便下次继续寻找。</p></div><div class="results-heading"><h2 id="favorites-title">收藏的资源</h2><button id="export-favorites" class="secondary-button"><span data-icon="download"></span>导出收藏</button></div><div id="favorites-results" class="result-grid"></div></section>
+      <section id="sources-view" hidden><div class="section-hero"><div class="eyebrow">每一个结果，都有来处</div><h1>连接更多<span>可能。</span></h1><p>已接入的来源参与搜索，其他网站可以直接访问。</p></div><div class="results-heading"><h2>已接入的搜索服务</h2><span class="subtle-pill">密钥在服务端管理</span></div><div id="provider-directory" class="source-grid"></div><div class="results-heading directory-heading"><h2>更多资源入口</h2><span class="muted">来源调研 · 2026.10.15</span></div><div id="site-directory" class="source-grid"></div><p class="directory-footnote">这些入口尚未接入自动搜索；网站首页可访问不代表所有分享链接有效。</p></section>
+      <footer><span>盘觅 <span class="footer-dot">·</span> 给寻找一个入口</span><span>公开分享索引 · 链接状态以网盘页面为准</span></footer>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <dialog id="copy-dialog"><h2>复制分享信息</h2><p>浏览器未允许自动复制，可在这里手动复制。</p><textarea id="copy-value" readonly aria-label="分享信息"></textarea><button id="close-copy" class="primary-button">关闭</button></dialog>
+</body>
+</html>
