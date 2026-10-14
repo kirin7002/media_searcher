@@ -1,7 +1,9 @@
 import { PLATFORMS, safeShareUrl, mergeItems } from './shared.js';
+import { initDiscovery } from './discover.js';
 
 const $ = id => document.getElementById(id);
 const icons = {
+  film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
   search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>',
   bookmark: '<path d="M6 3h12v18l-6-4-6 4z"/>',
   layers: '<path d="m12 3 9 5-9 5-9-5zM3 12l9 5 9-5M3 16l9 5 9-5"/>',
@@ -86,10 +88,10 @@ function renderFavorites() {
 
 function setView() {
   const view = location.hash.slice(1);
-  state.view = ['search', 'favorites', 'sources'].includes(view) ? view : 'search';
-  for (const name of ['search', 'favorites', 'sources']) $(`${name}-view`).hidden = name !== state.view;
+  state.view = ['search', 'favorites', 'sources', 'discover'].includes(view) ? view : 'search';
+  for (const name of ['search', 'favorites', 'sources', 'discover']) $(`${name}-view`).hidden = name !== state.view;
   document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === state.view));
-  $('breadcrumb').innerHTML = `工作台 <span>/</span> ${{ search: '资源搜索', favorites: '我的收藏', sources: '搜索来源' }[state.view]}`;
+  $('breadcrumb').innerHTML = `工作台 <span>/</span> ${{ search: '资源搜索', favorites: '我的收藏', sources: '搜索来源', discover: '近期上映' }[state.view]}`;
   if (state.view === 'favorites') renderFavorites();
 }
 
@@ -253,4 +255,12 @@ async function initialize() {
     $('search-notices').innerHTML = '<div class="error-banner">暂时无法连接后端服务，请刷新页面重试。</div>';
   }
 }
-initialize();
+initialize().then(() => initDiscovery({
+  icon, escape,
+  onSearch(title) {
+    state.query = [...title].slice(0, 60).join('');
+    $('query').value = state.query;
+    state.platform = 'all'; platformTabs();
+    search(); window.scrollTo({ top: 0 });
+  }
+}));

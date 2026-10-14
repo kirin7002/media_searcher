@@ -16,6 +16,8 @@ cp .env.example .env
 
 编辑 `.env`，填写要启用的来源。默认不填写海搜或 PanSou 也可以运行。
 
+“近期上映”需要额外填写 `TMDB_READ_ACCESS_TOKEN`（或 `TMDB_API_KEY`）；该配置仅放在服务器 `.env`。TMDb 账户、凭据及使用权限需由项目所有者申请，应用已接入电影与电视剧 Discover API、地区播放平台筛选和 TMDb 真实评分。未配置时网盘搜索仍正常运行，影视页显示数据服务尚未连接。
+
 ```sh
 docker compose up -d --build
 docker compose ps

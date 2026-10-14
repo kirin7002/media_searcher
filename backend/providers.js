@@ -32,7 +32,7 @@ export class UpstreamError extends Error {
   constructor(message) { super(message); this.name = 'UpstreamError'; }
 }
 
-async function requestJson(fetchImpl, url, options, timeout) {
+export async function requestJson(fetchImpl, url, options, timeout) {
   try {
     const response = await fetchImpl(url, {
       ...options, headers: { Accept: 'application/json', 'User-Agent': 'MediaSearcher/1.0', ...options?.headers },

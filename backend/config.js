@@ -24,6 +24,9 @@ export function loadConfig(env = process.env) {
     pansousuoBaseUrl: baseUrl(env.PANSOUSUO_BASE_URL, 'https://www.pansousuo.com'),
     pansouBaseUrl: baseUrl(env.PANSOU_BASE_URL),
     pansouToken: env.PANSOU_TOKEN || '',
-    haisouApiKey: env.HAISOU_API_KEY || ''
+    haisouApiKey: env.HAISOU_API_KEY || '',
+    tmdbToken: env.TMDB_READ_ACCESS_TOKEN || '',
+    tmdbApiKey: env.TMDB_API_KEY || '',
+    discoverTimezone: env.DISCOVER_TIMEZONE || 'Asia/Shanghai'
   };
 }

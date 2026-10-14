@@ -3,10 +3,13 @@ import { createServer } from 'node:http';
 import { createProviders, UpstreamError } from './providers.js';
 import { createSearchService, InputError } from './search.js';
 import { loadConfig } from './config.js';
+import { createDiscoverService } from './discover.js';
 
 const assets = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
+  '/discover.js': ['discover.js', 'text/javascript; charset=utf-8'],
+  '/tmdb-logo.svg': ['tmdb-logo.svg', 'image/svg+xml'],
   '/shared.js': ['shared.js', 'text/javascript; charset=utf-8'],
   '/styles.css': ['styles.css', 'text/css; charset=utf-8'],
   '/favicon.svg': ['favicon.svg', 'image/svg+xml']
@@ -14,7 +17,7 @@ const assets = {
 const headers = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
-  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: https://image.tmdb.org; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
   'X-Frame-Options': 'DENY'
 };
 
@@ -41,6 +44,7 @@ async function readJson(req) {
 
 export function createApp({ config = loadConfig(), fetchImpl = fetch, providers } = {}) {
   const service = createSearchService(providers || createProviders(config, fetchImpl), config);
+  const discovery = createDiscoverService(config, fetchImpl);
   const visitors = new Map();
   const startedAt = new Date().toISOString();
   const server = createServer(async (req, res) => {
@@ -48,8 +52,9 @@ export function createApp({ config = loadConfig(), fetchImpl = fetch, providers 
       const url = new URL(req.url, 'http://localhost');
       if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { status: 'ok', version: '1.0.0', startedAt, enabledSources: service.sources().filter(s => s.enabled).map(s => s.id) });
       if (url.pathname === '/api/sources' && req.method === 'GET') return json(res, 200, { sources: service.sources(), checkingEnabled: service.sources().some(s => s.supportsCheck) });
-      if (url.pathname === '/api/search' || url.pathname === '/api/check') {
-        const method = url.pathname === '/api/search' ? 'GET' : 'POST';
+      if (url.pathname === '/api/discover/config' && req.method === 'GET') return json(res, 200, discovery.config());
+      if (['/api/search', '/api/check', '/api/discover', '/api/discover/providers'].includes(url.pathname)) {
+        const method = url.pathname === '/api/check' ? 'POST' : 'GET';
         if (req.method !== method) return json(res, 405, { error: '请求方法不支持' }, { Allow: method });
         if (req.method === 'POST' && req.headers.origin && req.headers.origin !== `${req.socket.encrypted ? 'https' : 'http'}://${req.headers.host}` && new URL(req.headers.origin).host !== req.headers.host) throw new InputError('不接受跨站请求', 403);
         const address = config.trustProxy ? String(req.headers['x-forwarded-for'] || req.socket.remoteAddress).split(',')[0].trim() : req.socket.remoteAddress;
@@ -67,6 +72,8 @@ export function createApp({ config = loadConfig(), fetchImpl = fetch, providers 
           const result = await service.search(url.searchParams);
           return json(res, result.failed ? 502 : 200, result);
         }
+        if (url.pathname === '/api/discover') return json(res, 200, await discovery.discover(url.searchParams));
+        if (url.pathname === '/api/discover/providers') return json(res, 200, await discovery.providers(url.searchParams));
         return json(res, 200, await service.check(await readJson(req)));
       }
       if (url.pathname.startsWith('/api/')) return json(res, 404, { error: '接口不存在' });

@@ -12,6 +12,7 @@
 - 来源独立超时、短期缓存、重复请求合并、限流与部分失败提示。
 - 配置海搜或 PanSou 后，按需检测分享链接；默认不宣称链接已有效。
 - 响应式中文界面，适配桌面和手机。
+- 近期上映页面：Netflix、Hulu、Prime Video、Disney+、HBO Max、Apple TV、Paramount+ 和 Peacock 的地区片库；本月 / 最近 30 天、电影 / 新剧、TMDb 评分与上映时间排序，点击片名直接搜索网盘。
 - Docker / Compose 部署、健康检查、Nginx 与 systemd 示例。
 
 未配置的来源不会参与搜索；来源失效会展示错误，不使用演示资源替代真实结果。
@@ -46,8 +47,15 @@ npm start
 | `CACHE_TTL_SECONDS` | `120` | 成功搜索响应缓存时长；0 为关闭 |
 | `RATE_LIMIT_PER_MINUTE` | `60` | 每客户端每分钟搜索 / 检测请求上限 |
 | `TRUST_PROXY` | `false` | 信任转发 IP，仅在可信反代后开启 |
+| `TMDB_READ_ACCESS_TOKEN` | 空 | TMDb API Read Access Token，启用近期上映页面的真实数据 |
+| `TMDB_API_KEY` | 空 | 可选 v3 API key，与 Read Access Token 任选一种 |
+| `DISCOVER_TIMEZONE` | `Asia/Shanghai` | 本月与最近 30 天的日期边界 |
 
 海搜按站方额度计费，仓库不包含 key。收藏保存在当前浏览器，不同步到服务器；服务端缓存为内存缓存，重启后清空。
+
+影视页默认使用美国区片库，支持切换地区。日期指首次上映 / 首播日期，不是平台上架日期，也不包含旧剧最近一季的更新。TMDb 评分采用其真实 `vote_average` 和评分人数，不冒充 IMDb 评分；未知评分显示为暂无评分。平台标识从 TMDb 当前地区的官方列表读取；可看状态和资料以 TMDb / JustWatch 数据为准。
+
+TMDb 未配置时，页面明确显示数据源未连接，不使用虚构片单。申请入口为 [TMDb API 设置](https://www.themoviedb.org/settings/api)。填入 `.env` 后重启服务；Docker 使用 `docker compose up -d --build`。配置不会返回给前端。新片列表成功响应缓存 10 分钟，失败不会缓存。
 
 来源站点可能改接口、换域名或限制访问，详见 [来源调研](docs/SOURCES.md)。海搜和 PanSou 适配器经过隔离测试，真实鉴权调用需要自己的配置。
 
@@ -71,6 +79,9 @@ curl http://127.0.0.1:3210/api/health
 - `GET /api/sources`：来源配置状态，不返回凭据。
 - `GET /api/search?q=Python&pan=all&page=1&sort=latest&sources=pansousuo`：搜索。
 - `POST /api/check`：JSON 参数包含 `url` 与可选 `password`，需要配置检测来源。
+- `GET /api/discover/config`：影视数据配置状态、平台与地区列表，不返回 token。
+- `GET /api/discover?type=tv&platform=netflix&period=month&region=US&sort=rating&minVotes=10&page=1`：近期上映作品。
+- `GET /api/discover/providers?type=tv&region=US`：当前地区可用的主流平台。
 
 `pan` 取值见 `frontend/shared.js`；`sources` 可选 `pansousuo,pansou,haisou` 中已启用的来源。`sort` 支持 `latest`、`hot`，排序以各来源为准。PanSou 无分页能力，第一页聚合后不重复查询后续页。
 
