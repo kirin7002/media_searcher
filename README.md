@@ -4,7 +4,7 @@
 
 ## 功能
 
-- 真实搜索：默认接入盘搜索公开 API，可选接入海搜和自部署 PanSou。
+- 真实搜索：默认接入盘搜索、PanSearch、人人电影网，以及两个公开影视频道；可选接入海搜和自部署 PanSou。
 - 网盘筛选、最新收录 / 来源热度排序、分页加载与可分享的查询 URL。
 - 按网盘分享 ID 去重，合并多个来源并保留各来源的链接与提取码。
 - 打开原始分享链接、复制分享信息、收藏与 JSON 导出。
@@ -19,10 +19,11 @@
 
 ## 本地运行
 
-需要 **Node.js 22.9+**（建议 24）。没有第三方运行时依赖，无需安装依赖或构建前端。
+需要 **Node.js 22.9+**（建议 24）。后端用 Cheerio 解析公开 HTML，前端无需单独构建。
 
 ```sh
 cp .env.example .env
+npm ci --ignore-scripts
 npm start
 ```
 
@@ -39,6 +40,10 @@ npm start
 | `HOST` | `127.0.0.1` | 监听地址；容器中覆盖为 `0.0.0.0` |
 | `PORT` | `3210` | Node 服务端口 |
 | `PANSOUSUO_BASE_URL` | `https://www.pansousuo.com` | 盘搜索服务地址 |
+| `PANSEARCH_BASE_URL` | `https://www.pansearch.me` | PanSearch 公开搜索页地址 |
+| `RRDYNB_BASE_URL` | `https://www.rrdynb.com` | 人人电影网公开影视搜索地址 |
+| `TELEGRAM_CHANNELS` | `Aliyun_4K_Movies,Quark_Movies` | 最多 5 个公开频道；设为空关闭频道来源 |
+| `DISABLED_SOURCES` | 空 | 逗号分隔要停用的来源 ID，ID 可从 `/api/sources` 获取 |
 | `PANSOU_BASE_URL` | 空 | 自部署 PanSou 根地址；配置后启用 |
 | `PANSOU_TOKEN` | 空 | PanSou 认证 Token（如开启认证） |
 | `HAISOU_API_KEY` | 空 | 海搜开放接口 key；配置后启用 |
@@ -58,6 +63,10 @@ npm start
 TMDb 未配置时，页面明确显示数据源未连接，不使用虚构片单。申请入口为 [TMDb API 设置](https://www.themoviedb.org/settings/api)。填入 `.env` 后重启服务；Docker 使用 `docker compose up -d --build`。配置不会返回给前端。新片列表成功响应缓存 10 分钟，失败不会缓存。
 
 来源站点可能改接口、换域名或限制访问，详见 [来源调研](docs/SOURCES.md)。海搜和 PanSou 适配器经过隔离测试，真实鉴权调用需要自己的配置。
+
+PanSearch 一条记录可能包含多个分享链接，后端会逐个提取并按分享 ID 去重；其网盘过滤作用于当前返回页。人人电影网只读取搜索结果中的影视正文，每页最多 6 个详情页，整体超时沿用 `SOURCE_TIMEOUT_MS`；一个详情读取失败时仍保留其他结果。
+
+公开频道仅在最近公开展示的帖子中匹配关键词，**不是全频道历史搜索**，不参与后续分页。`tg_aliyun_4k_movies` 和 `tg_quark_movies` 是默认频道来源 ID。需要完整的公开频道历史聚合时可以接入自己部署的 PanSou。
 
 ## 服务器部署
 
@@ -83,9 +92,11 @@ curl http://127.0.0.1:3210/api/health
 - `GET /api/discover?type=tv&platform=netflix&period=month&region=US&sort=rating&minVotes=10&page=1`：近期上映作品。
 - `GET /api/discover/providers?type=tv&region=US`：当前地区可用的主流平台。
 
-`pan` 取值见 `frontend/shared.js`；`sources` 可选 `pansousuo,pansou,haisou` 中已启用的来源。`sort` 支持 `latest`、`hot`，排序以各来源为准。PanSou 无分页能力，第一页聚合后不重复查询后续页。
+`pan` 取值见 `frontend/shared.js`；`sources` 从 `/api/sources` 的已启用来源中选择。`sort` 支持 `latest`、`hot`，排序以各来源为准；公开页面与频道保持来源原始顺序。PanSou 和最近公开频道无分页能力，第一页聚合后不重复查询后续页。
 
 响应包括 `items`、`sources`、`hasMore`、`partial` 和耗时。结果数为当前返回页去重后的链接数量，`sourceTotal` 是来源自报命中数量之和，不是全网去重总数。
+
+`sources[].totalType=page` 表示本页找到的链接数；其他来源的数字可能是索引记录数，一条记录可能有多个链接。`items[].sources[].pageUrl` 保存原始文章或帖子位置（来源提供时）。
 
 全部来源失败返回 502；部分成功返回 200 并标明失败来源；正常查询无结果返回 200 的空列表；参数错误返回 400，限流返回 429。
 

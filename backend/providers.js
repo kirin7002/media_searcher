@@ -1,4 +1,5 @@
 import { safeShareUrl } from '../frontend/shared.js';
+import { createPublicProviders } from './public-sources.js';
 
 const text = (value, limit = 500) => typeof value === 'string' ? value.replace(/<[^>]*>/g, '').trim().slice(0, limit) : '';
 const date = value => value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : null;
@@ -17,7 +18,7 @@ export function normalizeItem(raw, source) {
     publishedAt: date(raw.published_at || raw.datetime),
     fileCount: Number.isSafeInteger(Number(raw.fileCount || raw.file_count)) && Number(raw.fileCount || raw.file_count) > 0 ? Number(raw.fileCount || raw.file_count) : null,
     linkState: 'unchecked',
-    sources: [{ id: source.id, name: source.name, url: share.url, password }]
+    sources: [{ id: source.id, name: source.name, url: share.url, password, ...(raw.sourcePage ? { pageUrl: raw.sourcePage } : {}) }]
   };
 }
 
@@ -32,7 +33,7 @@ export class UpstreamError extends Error {
   constructor(message) { super(message); this.name = 'UpstreamError'; }
 }
 
-export async function requestJson(fetchImpl, url, options, timeout) {
+async function requestBody(fetchImpl, url, options, timeout) {
   try {
     const response = await fetchImpl(url, {
       ...options, headers: { Accept: 'application/json', 'User-Agent': 'MediaSearcher/1.0', ...options?.headers },
@@ -46,7 +47,7 @@ export async function requestJson(fetchImpl, url, options, timeout) {
       if (length > 4 * 1024 * 1024) { await response.body.cancel?.().catch(() => {}); throw new UpstreamError('来源响应过大'); }
       chunks.push(Buffer.from(chunk));
     }
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    return Buffer.concat(chunks).toString('utf8');
   } catch (error) {
     if (error instanceof UpstreamError) throw error;
     if (['TimeoutError', 'AbortError'].includes(error.name)) throw new UpstreamError('来源响应超时，请稍后重试');
@@ -55,10 +56,22 @@ export async function requestJson(fetchImpl, url, options, timeout) {
   }
 }
 
+export async function requestJson(fetchImpl, url, options, timeout) {
+  try { return JSON.parse(await requestBody(fetchImpl, url, options, timeout)); }
+  catch (error) {
+    if (error instanceof SyntaxError) throw new UpstreamError('来源未返回有效的 JSON 数据');
+    throw error;
+  }
+}
+
+export async function requestText(fetchImpl, url, options, timeout) {
+  return requestBody(fetchImpl, url, { ...options, headers: { Accept: 'text/html', ...options?.headers } }, timeout);
+}
+
 export function createProviders(config, fetchImpl = fetch) {
   const pansousuo = {
     id: 'pansousuo', name: '盘搜索', enabled: true, website: 'https://www.pansousuo.com/',
-    description: '公开分享索引，支持关键词、网盘筛选和分页。', supportsCheck: false,
+    description: '公开分享索引，支持关键词、网盘筛选和分页。', supportsCheck: false, supportsPagination: true,
     async search({ query, platform, page, sort }) {
       const url = new URL('/api/search', config.pansousuoBaseUrl);
       url.searchParams.set('q', query); url.searchParams.set('p', page); url.searchParams.set('sort', sort);
@@ -70,7 +83,7 @@ export function createProviders(config, fetchImpl = fetch) {
   };
   const pansou = {
     id: 'pansou', name: 'PanSou 聚合', enabled: Boolean(config.pansouBaseUrl), website: 'https://github.com/fish2018/pansou',
-    description: '连接你部署的 PanSou，聚合多个网站与公开频道。', disabledReason: '尚未配置 PanSou 服务地址', supportsCheck: Boolean(config.pansouBaseUrl),
+    description: '连接你部署的 PanSou，聚合多个网站与公开频道。', disabledReason: '尚未配置 PanSou 服务地址', supportsCheck: Boolean(config.pansouBaseUrl), supportsPagination: false,
     async search({ query, platform, page }) {
       if (page > 1) return { items: [], total: 0, hasMore: false };
       const data = await requestJson(fetchImpl, new URL('/api/search', config.pansouBaseUrl), {
@@ -94,7 +107,7 @@ export function createProviders(config, fetchImpl = fetch) {
   };
   const haisou = {
     id: 'haisou', name: '海搜', enabled: Boolean(config.haisouApiKey), website: 'https://haisou.cc/',
-    description: '按站方额度调用，可返回分享链接与提取码并检测有效性。', disabledReason: '尚未配置海搜 API key', supportsCheck: Boolean(config.haisouApiKey),
+    description: '按站方额度调用，可返回分享链接与提取码并检测有效性。', disabledReason: '尚未配置海搜 API key', supportsCheck: Boolean(config.haisouApiKey), supportsPagination: true,
     async search({ query, platform, page }) {
       const platformAlias = { aliyun: 'ali', mobile: 'yidong' };
       const supported = ['all', 'aliyun', 'baidu', 'quark', 'xunlei', 'tianyi', 'mobile', '115', '123', 'uc'];
@@ -120,5 +133,8 @@ export function createProviders(config, fetchImpl = fetch) {
     if (data.code !== 0) throw new UpstreamError(({ 1004: '海搜 API key 权限不足', 1005: '海搜额度不足', 1003: '海搜繁忙，请稍后重试' })[data.code] || '海搜接口调用失败');
     return data.result;
   }
-  return [pansousuo, pansou, haisou];
+  return [pansousuo, pansou, haisou, ...createPublicProviders(config, { requestText, requestJson, normalizeItem, UpstreamError }, fetchImpl)].map(provider => {
+    if (config.disabledSources?.includes(provider.id)) return { ...provider, enabled: false, supportsCheck: false, disabledReason: '已由服务器配置停用' };
+    return provider;
+  });
 }

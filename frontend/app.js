@@ -30,10 +30,8 @@ let toastTimer;
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 2500); }
 
 const sites = [
-  { name: 'PanSearch', website: 'https://www.pansearch.me/', tag: '网盘搜索', description: '提供百度、夸克、阿里和迅雷等网盘的网页搜索入口。' },
   { name: '轻搜搜', website: 'https://sosopx.com/', tag: '网盘搜索', description: '可通过网页搜索百度、夸克等网盘分享索引。' },
   { name: '小鸡窝', website: 'https://xiaojiwo.sylu.net/', tag: '分享索引', description: '通过分类、搜索和详情页寻找公开分享信息。' },
-  { name: '人人电影网', website: 'https://www.rrdynb.com/index.html', tag: '影视目录', description: '浏览影视条目，查看详情中的资源说明和分享入口。' },
   { name: '易搜', website: 'https://yiso.eu.org/', tag: '待核实', description: '地址发布页；本轮访问受限，当前可用性尚未确认。' },
   { name: '混合盘', website: 'https://hunhepan.com/', tag: '待核实', description: '聚合搜索入口；本轮访问异常，当前可用性尚未确认。' }
 ];
@@ -48,7 +46,7 @@ function sourceOptions() {
 }
 
 function renderDirectories() {
-  $('provider-directory').innerHTML = state.providers.map(p => `<article class="source-card"><div class="source-card-head"><span class="directory-icon">${icon('layers')}</span><span class="badge ${p.enabled ? 'green' : 'neutral'}">${p.enabled ? '已接入' : '待配置'}</span></div><h3>${escape(p.name)}</h3><p>${escape(p.description)}</p><div class="source-card-bottom"><span>${p.enabled ? (p.supportsCheck ? '搜索 · 链接检测' : '搜索 · 分页') : escape(p.disabledReason)}</span><a href="${escape(p.website)}" target="_blank" rel="noopener noreferrer" aria-label="访问${escape(p.name)}">↗</a></div></article>`).join('');
+  $('provider-directory').innerHTML = state.providers.map(p => `<article class="source-card"><div class="source-card-head"><span class="directory-icon">${icon('layers')}</span><span class="badge ${p.enabled ? 'green' : 'neutral'}">${p.enabled ? '已接入' : '待配置'}</span></div><h3>${escape(p.name)}</h3><p>${escape(p.description)}</p><div class="source-card-bottom"><span>${p.enabled ? (p.supportsCheck ? '搜索 · 链接检测' : p.supportsPagination ? '搜索 · 可翻页' : '搜索 · 最近公开帖') : escape(p.disabledReason)}</span><a href="${escape(p.website)}" target="_blank" rel="noopener noreferrer" aria-label="访问${escape(p.name)}">↗</a></div></article>`).join('');
   $('site-directory').innerHTML = sites.map(p => `<article class="source-card"><div class="source-card-head"><span class="directory-icon light">${icon('globe')}</span><span class="badge neutral">${p.tag}</span></div><h3>${p.name}</h3><p>${p.description}</p><div class="source-card-bottom"><span>${new URL(p.website).hostname}</span><a href="${p.website}" target="_blank" rel="noopener noreferrer" aria-label="访问${p.name}">↗</a></div></article>`).join('');
 }
 
@@ -108,7 +106,7 @@ function updateUrl() {
 }
 
 function showStatuses(data) {
-  $('search-notices').innerHTML = data.sources.map(source => `<span class="source-response ${source.state === 'error' ? 'error' : ''}"><span class="status-dot ${source.state === 'error' ? 'warning' : 'connected'}"></span>${escape(source.name)} · ${source.state === 'error' ? escape(source.message) : source.blocked ? '来源限制了该关键词' : `${source.total} 条${source.cached ? ' · 缓存' : ''}`}</span>`).join('') + (data.failed ? '<div class="error-banner">搜索来源暂时不可用。<button id="retry-search">重试搜索</button></div>' : data.partial ? '<div class="partial-note">部分来源暂时不可用，已显示其他来源的结果。</div>' : '');
+  $('search-notices').innerHTML = data.sources.map(source => `<span class="source-response ${source.state === 'error' || source.degraded ? 'error' : ''}"><span class="status-dot ${source.state === 'error' || source.degraded ? 'warning' : 'connected'}"></span>${escape(source.name)} · ${source.state === 'error' ? escape(source.message) : source.blocked ? '来源限制了该关键词' : `${source.total} ${source.totalType === 'page' ? '个本页链接' : '条记录'}${source.cached ? ' · 缓存' : ''}${source.note ? ' · ' + escape(source.note) : ''}`}</span>`).join('') + (data.failed ? '<div class="error-banner">搜索来源暂时不可用。<button id="retry-search">重试搜索</button></div>' : data.partial ? '<div class="partial-note">部分来源结果未能完整读取，已保留成功取得的链接。</div>' : '');
 }
 
 async function search({ append = false, url = true } = {}) {

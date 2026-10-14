@@ -16,6 +16,8 @@ cp .env.example .env
 
 编辑 `.env`，填写要启用的来源。默认不填写海搜或 PanSou 也可以运行。
 
+默认启用盘搜索、PanSearch、人人电影网、阿里4K影视公开频道和夸克影视公开频道。服务器需要能访问对应站点与 `t.me`；若某来源受网络限制，可在 `.env` 的 `DISABLED_SOURCES` 填写其 ID。将 `TELEGRAM_CHANNELS` 设为空可关闭所有公开频道。各来源独立失败，不会阻止其他来源返回结果。
+
 “近期上映”需要额外填写 `TMDB_READ_ACCESS_TOKEN`（或 `TMDB_API_KEY`）；该配置仅放在服务器 `.env`。TMDb 账户、凭据及使用权限需由项目所有者申请，应用已接入电影与电视剧 Discover API、地区播放平台筛选和 TMDb 真实评分。未配置时网盘搜索仍正常运行，影视页显示数据服务尚未连接。
 
 ```sh
@@ -75,7 +77,7 @@ docker compose logs --tail=100 media-searcher
 
 ## 无 Docker：Node.js + systemd
 
-安装 Node.js 22.9+，将代码放到 `/opt/media-searcher`，创建专用用户 `media-searcher`，创建 `.env`。用该用户运行 `npm start`，先验证健康和查询接口。
+安装 Node.js 22.9+，将代码放到 `/opt/media-searcher`，创建专用用户 `media-searcher`，创建 `.env`。先运行 `npm ci --ignore-scripts` 安装后端解析依赖，再用该用户运行 `npm start`，验证健康和查询接口。
 
 将 `deploy/media-searcher.service` 安装到 `/etc/systemd/system/media-searcher.service`。根据 Node 安装位置调整 `ExecStart`（用 `command -v node` 确认），确保专用用户可以读取代码和 `.env`。
 

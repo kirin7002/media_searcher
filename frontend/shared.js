@@ -49,7 +49,7 @@ export function mergeItems(items) {
     const previous = map.get(item.id);
     if (!previous) { map.set(item.id, { ...item, sources: [...(item.sources || [])] }); continue; }
     for (const source of item.sources || []) {
-      if (!previous.sources.some(s => s.id === source.id && s.url === source.url && s.password === source.password)) previous.sources.push(source);
+      if (!previous.sources.some(s => s.id === source.id && s.url === source.url && s.password === source.password && s.pageUrl === source.pageUrl)) previous.sources.push(source);
     }
     if (!previous.password && item.password) previous.password = item.password;
     for (const key of ['size', 'quality', 'publishedAt', 'description', 'fileCount']) {

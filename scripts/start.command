@@ -6,4 +6,7 @@ if ! command -v node >/dev/null 2>&1; then
   read -r -p '按回车退出。'
   exit 1
 fi
+if ! node --input-type=module -e "import('cheerio')" >/dev/null 2>&1; then
+  npm ci --ignore-scripts
+fi
 exec npm start

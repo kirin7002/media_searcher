@@ -28,7 +28,7 @@ export function createSearchService(providers, config) {
   const available = providers.filter(p => p.enabled);
   return {
     sources() {
-      return providers.map(({ id, name, website, description, enabled, disabledReason, supportsCheck }) => ({ id, name, website, description, enabled, supportsCheck, disabledReason: enabled ? null : disabledReason }));
+      return providers.map(({ id, name, website, description, enabled, disabledReason, supportsCheck, supportsPagination }) => ({ id, name, website, description, enabled, supportsCheck, supportsPagination: Boolean(supportsPagination), disabledReason: enabled ? null : disabledReason }));
     },
     async search(params) {
       const query = (params.get('q') || '').trim();
@@ -70,7 +70,7 @@ export function createSearchService(providers, config) {
         sourceTotal: statuses.reduce((n, s) => n + s.total, 0),
         hasMore: page < 50 && statuses.some(s => s.hasMore),
         durationMs: Date.now() - started,
-        partial: succeeded > 0 && succeeded < selected.length,
+        partial: succeeded > 0 && (succeeded < selected.length || statuses.some(s => s.degraded)),
         failed: succeeded === 0,
         sources: statuses.map(({ items: ignored, ...status }) => status)
       };
