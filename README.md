@@ -12,7 +12,7 @@
 - 来源独立超时、短期缓存、重复请求合并、限流与部分失败提示。
 - 配置海搜或 PanSou 后，按需检测分享链接；默认不宣称链接已有效。
 - 响应式中文界面，适配桌面和手机。
-- 近期上映页面：Netflix、Hulu、Prime Video、Disney+、HBO Max、Apple TV、Paramount+ 和 Peacock 的地区片库；本月 / 最近 30 天、电影 / 新剧、TMDb 评分与上映时间排序，点击片名直接搜索网盘。
+- 近期上映页面：电视剧、电影、动漫剧集、动漫电影和综艺；支持较长时间范围、TMDb 评分与上映时间排序，点击片名直接搜索网盘。选择具体地区后可按 Netflix、Hulu、Prime Video 等平台筛选。
 - Docker / Compose 部署、健康检查、Nginx 与 systemd 示例。
 
 未配置的来源不会参与搜索；来源失效会展示错误，不使用演示资源替代真实结果。
@@ -54,11 +54,15 @@ npm start
 | `TRUST_PROXY` | `false` | 信任转发 IP，仅在可信反代后开启 |
 | `TMDB_READ_ACCESS_TOKEN` | 空 | TMDb API Read Access Token，启用近期上映页面的真实数据 |
 | `TMDB_API_KEY` | 空 | 可选 v3 API key，与 Read Access Token 任选一种 |
-| `DISCOVER_TIMEZONE` | `Asia/Shanghai` | 本月与最近 30 天的日期边界 |
+| `DISCOVER_TIMEZONE` | `Asia/Shanghai` | 各时间范围及“今天”的日期边界 |
 
 海搜按站方额度计费，仓库不包含 key。收藏保存在当前浏览器，不同步到服务器；服务端缓存为内存缓存，重启后清空。
 
-影视页默认使用美国区片库，支持切换地区。日期指首次上映 / 首播日期，不是平台上架日期，也不包含旧剧最近一季的更新。TMDb 评分采用其真实 `vote_average` 和评分人数，不冒充 IMDb 评分；未知评分显示为暂无评分。平台标识从 TMDb 当前地区的官方列表读取；可看状态和资料以 TMDb / JustWatch 数据为准。
+影视页默认地区不限、评分人数不限，直接查询全球作品，不暗中沿用美国区。平台片库依地区而异，按 Netflix 等平台过滤时需先选择具体地区；API 对 `platform=netflix&region=all` 等组合返回 400，不忽略条件或擅自选择美国区。
+
+时间范围支持本月、30 天、90 天、半年、1 年、3 年、全部时间和自定义开始 / 结束日期。自定义范围校验真实日期、先后关系，结束日期不能晚于今天；全部时间不设置开始日期，仍排除未来作品。日期指首次上映 / 首播日期，不是平台上架日期，也不包含旧剧最近一季的更新。
+
+类型包括电视剧、电影、动漫剧集、动漫电影、综艺。动漫对应 TMDb Animation 分类，综艺对应 Reality / Talk 分类。动漫电影使用电影接口，动漫剧集和综艺使用电视剧接口，详情链接仍保持正确的电影 / 电视剧 ID 路径。TMDb 评分采用其真实 `vote_average` 和评分人数；未知评分显示为暂无评分，不冒充 IMDb 评分。
 
 TMDb 未配置时，页面明确显示数据源未连接，不使用虚构片单。申请入口为 [TMDb API 设置](https://www.themoviedb.org/settings/api)。填入 `.env` 后重启服务；Docker 使用 `docker compose up -d --build`。配置不会返回给前端。新片列表成功响应缓存 10 分钟，失败不会缓存。
 
@@ -91,6 +95,8 @@ curl http://127.0.0.1:3210/api/health
 - `GET /api/discover/config`：影视数据配置状态、平台与地区列表，不返回 token。
 - `GET /api/discover?type=tv&platform=netflix&period=month&region=US&sort=rating&minVotes=10&page=1`：近期上映作品。
 - `GET /api/discover/providers?type=tv&region=US`：当前地区可用的主流平台。
+
+影视查询类型 `type` 支持 `tv/movie/anime/anime_movie/variety`；时间 `period` 支持 `month/30d/90d/180d/365d/3y/all/custom`。自定义示例：`/api/discover?type=anime&period=custom&from=2024-01-01&to=2025-12-31`。省略 `region` 和 `minVotes` 时，分别按 `all` 与 `0` 处理。
 
 `pan` 取值见 `frontend/shared.js`；`sources` 从 `/api/sources` 的已启用来源中选择。`sort` 支持 `latest`、`hot`，排序以各来源为准；公开页面与频道保持来源原始顺序。PanSou 和最近公开频道无分页能力，第一页聚合后不重复查询后续页。
 

@@ -41,20 +41,22 @@
       <section id="favorites-view" hidden><div class="section-hero"><div class="eyebrow">留下值得再看的</div><h1>我的收藏<span>。</span></h1><p>收藏保存在当前浏览器，方便下次继续寻找。</p></div><div class="results-heading"><h2 id="favorites-title">收藏的资源</h2><button id="export-favorites" class="secondary-button"><span data-icon="download"></span>导出收藏</button></div><div id="favorites-results" class="result-grid"></div></section>
       <section id="sources-view" hidden><div class="section-hero"><div class="eyebrow">每一个结果，都有来处</div><h1>连接更多<span>可能。</span></h1><p>已接入的来源参与搜索，其他网站可以直接访问。</p></div><div class="results-heading"><h2>已接入的搜索服务</h2><span class="subtle-pill">密钥在服务端管理</span></div><div id="provider-directory" class="source-grid"></div><div class="results-heading directory-heading"><h2>更多资源入口</h2><span class="muted">来源调研 · 2026.10.15</span></div><div id="site-directory" class="source-grid"></div><p class="directory-footnote">这些入口尚未接入自动搜索；网站首页可访问不代表所有分享链接有效。</p></section>
       <section id="discover-view" hidden>
-        <div class="section-hero"><div class="eyebrow">流媒体片库 · 新片发现</div><h1>这个月，<span>看点什么。</span></h1><p>发现主流平台近期上映的电影和新剧，选中片名，一步搜索网盘资源。</p></div>
+        <div class="section-hero"><div class="eyebrow">影视片库 · 新片发现</div><h1>最近，<span>看点什么。</span></h1><p>寻找电影、剧集、动漫与综艺，选中片名，一步搜索网盘资源。</p></div>
         <div id="streaming-platforms" class="streaming-platforms" role="group" aria-label="流媒体平台"></div>
         <form id="discover-filters" class="discover-filters">
-          <label>片库地区<select id="discover-region"><option value="US">美国</option><option value="GB">英国</option><option value="JP">日本</option><option value="KR">韩国</option><option value="HK">香港</option><option value="TW">台湾</option><option value="CA">加拿大</option><option value="AU">澳大利亚</option></select></label>
-          <label>作品类型<select id="discover-type"><option value="tv">电视剧</option><option value="movie">电影</option></select></label>
-          <label>时间范围<select id="discover-period"><option value="month">本月已上映</option><option value="30d">最近 30 天</option></select></label>
+          <label>片库地区<select id="discover-region"><option value="all">不限</option><option value="US">美国</option><option value="GB">英国</option><option value="JP">日本</option><option value="KR">韩国</option><option value="HK">香港</option><option value="TW">台湾</option><option value="CA">加拿大</option><option value="AU">澳大利亚</option></select></label>
+          <label>作品类型<select id="discover-type"><option value="tv">电视剧</option><option value="movie">电影</option><option value="anime">动漫剧集</option><option value="anime_movie">动漫电影</option><option value="variety">综艺</option></select></label>
+          <label>时间范围<select id="discover-period"><option value="month">本月已上映</option><option value="30d">最近 30 天</option><option value="90d">最近 90 天</option><option value="180d">最近半年</option><option value="365d">最近 1 年</option><option value="3y">最近 3 年</option><option value="all">全部时间</option><option value="custom">自定义日期</option></select></label>
           <label>排序<select id="discover-sort"><option value="rating">TMDb 评分从高到低</option><option value="newest">上映时间从新到旧</option></select></label>
-          <label>评分人数<select id="discover-votes"><option value="10">至少 10 人</option><option value="0">不限</option><option value="100">至少 100 人</option></select></label>
+          <label>评分人数<select id="discover-votes"><option value="0">不限</option><option value="10">至少 10 人</option><option value="100">至少 100 人</option></select></label>
+          <div id="discover-custom-dates" class="custom-dates" hidden><label>开始日期<input type="date" id="discover-from"></label><label>结束日期<input type="date" id="discover-to"></label><button type="button" id="discover-apply-dates" class="secondary-button">应用日期</button></div>
         </form>
+        <p class="directory-footnote" id="discover-region-hint">不限地区时展示全球作品；不同地区的平台片库不同，按平台筛选时请先选择具体地区。</p>
         <div id="discover-notice" aria-live="polite"></div>
         <div class="results-heading"><div><h2 id="discover-title">本月新剧</h2><p id="discover-summary">正在连接影视数据服务…</p></div><button id="discover-refresh" class="secondary-button">重新加载</button></div>
         <div id="discover-results" class="movie-grid" aria-live="polite" aria-busy="false"></div>
         <div class="load-more-wrap"><button id="discover-more" class="secondary-button" hidden>加载更多作品 ↓</button></div>
-        <p class="directory-footnote">时间按作品首次上映或首播日期筛选，非平台上架日期。平台是否可看因地区而异；评分来自 TMDb，未评分作品不会显示虚构分数。</p>
+        <p class="directory-footnote">时间按作品首次上映或首播日期筛选，非平台上架日期。动漫按动画分类，综艺包含真人秀、脱口秀；评分来自 TMDb，未评分作品显示“暂无评分”。</p>
         <section class="data-credits" aria-label="影视数据来源"><a href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer"><img src="/tmdb-logo.svg" alt="TMDb" width="95" height="14"></a><div><p>影视信息与评分：TMDb · 平台片库信息：<a href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer">JustWatch</a></p><p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p></div></section>
       </section>
       <footer><span>盘觅 <span class="footer-dot">·</span> 给寻找一个入口</span><span>公开分享索引 · 链接状态以网盘页面为准</span></footer>

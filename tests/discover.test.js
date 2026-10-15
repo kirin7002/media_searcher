@@ -22,6 +22,66 @@ test('month and rolling dates use Shanghai calendar and exclude future dates', (
   assert.deepEqual(dateWindow('30d', new Date('2026-03-01T00:00:00Z')), { from: '2026-01-31', to: '2026-03-01' });
 });
 
+test('longer ranges handle year boundaries and leap days without future dates', () => {
+  assert.deepEqual(dateWindow('90d', clock()), { from: '2026-07-18', to: '2026-10-15' });
+  assert.deepEqual(dateWindow('180d', clock()), { from: '2026-04-19', to: '2026-10-15' });
+  assert.deepEqual(dateWindow('365d', clock()), { from: '2025-10-16', to: '2026-10-15' });
+  assert.deepEqual(dateWindow('3y', clock()), { from: '2023-10-15', to: '2026-10-15' });
+  assert.deepEqual(dateWindow('3y', new Date('2024-02-29T00:00:00Z')), { from: '2021-02-28', to: '2024-02-29' });
+  assert.deepEqual(dateWindow('all', clock()), { from: null, to: '2026-10-15' });
+});
+
+test('custom range validates real calendar dates, order, missing start and future end', () => {
+  assert.deepEqual(dateWindow('custom', clock(), 'Asia/Shanghai', { from: '2020-02-29', to: '2026-10-01' }), { from: '2020-02-29', to: '2026-10-01' });
+  for (const custom of [{ from: '2026-02-30' }, { from: 'bad' }, { from: '' }, { from: '2026-10-10', to: '2026-10-09' }, { from: '2026-10-01', to: '2026-10-16' }]) assert.throws(() => dateWindow('custom', clock(), 'Asia/Shanghai', custom), error => error.status === 400);
+});
+
+test('defaults truly browse globally with unrestricted vote count, without a hidden US catalog', async () => {
+  const requests = [];
+  const service = createDiscoverService(cfg(), mockFetch(url => requests.push(url)), clock);
+  const result = await service.discover(new URLSearchParams());
+  const request = requests.at(-1);
+  assert.equal(result.region, 'all');
+  assert.equal(request.searchParams.get('vote_count.gte'), '0');
+  for (const key of ['watch_region', 'with_watch_providers', 'with_watch_monetization_types']) assert.equal(request.searchParams.has(key), false, key);
+  assert.equal(requests[0].searchParams.has('watch_region'), false);
+});
+
+test('global region never silently ignores an explicitly selected streaming platform', async () => {
+  let calls = 0;
+  const service = createDiscoverService(cfg(), async () => { calls++; throw new Error(); }, clock);
+  await assert.rejects(service.discover(new URLSearchParams({ platform: 'netflix' })), error => error.status === 400 && error.message.includes('具体片库地区'));
+  assert.equal(calls, 0);
+});
+
+test('anime series, anime films and variety use the correct API families and genre filters', async () => {
+  for (const [type, mediaType, genres, name] of [['anime', 'tv', '16', '动漫剧集'], ['anime_movie', 'movie', '16', '动漫电影'], ['variety', 'tv', '10764|10767', '综艺']]) {
+    const requests = [];
+    const service = createDiscoverService(cfg(), mockFetch(url => requests.push(url), [row({ title: '测试作品', release_date: '2026-10-10', genre_ids: genres.split('|').map(Number) })]), clock);
+    const result = await service.discover(new URLSearchParams({ type, period: '90d' }));
+    const request = requests.at(-1);
+    assert.equal(request.pathname, `/3/discover/${mediaType}`);
+    assert.equal(request.searchParams.get('with_genres'), genres);
+    assert.equal(requests[0].pathname, `/3/watch/providers/${mediaType}`);
+    assert.equal(result.items[0].categoryName, name);
+    assert.equal(result.items[0].category, type);
+    assert.equal(result.items[0].type, mediaType);
+    assert.equal(result.items[0].tmdbUrl, `https://www.themoviedb.org/${mediaType}/123`);
+  }
+});
+
+test('all-time queries omit the lower bound and custom dates reach the actual API', async () => {
+  const requests = [];
+  const service = createDiscoverService(cfg(), mockFetch(url => requests.push(url)), clock);
+  const all = await service.discover(new URLSearchParams({ period: 'all' }));
+  assert.equal(all.range.from, null);
+  assert.equal(requests.at(-1).searchParams.has('first_air_date.gte'), false);
+  assert.equal(requests.at(-1).searchParams.get('first_air_date.lte'), '2026-10-15');
+  await service.discover(new URLSearchParams({ period: 'custom', from: '2024-01-01', to: '2026-10-01' }));
+  assert.equal(requests.at(-1).searchParams.get('first_air_date.gte'), '2024-01-01');
+  assert.equal(requests.at(-1).searchParams.get('first_air_date.lte'), '2026-10-01');
+});
+
 test('unconfigured metadata never contacts upstream or fabricates titles', async () => {
   let calls = 0;
   const service = createDiscoverService(loadConfig({}), async () => { calls++; throw new Error(); });
@@ -46,7 +106,7 @@ test('movie discovery resolves provider IDs and sends date, region, score and pa
 test('TV newest ordering uses first air date and ORs provider IDs for all platforms', async () => {
   let last;
   const service = createDiscoverService(cfg(), mockFetch(url => { last = url; }), clock);
-  const data = await service.discover(new URLSearchParams({ type: 'tv', sort: 'newest', period: '30d' }));
+  const data = await service.discover(new URLSearchParams({ type: 'tv', region: 'US', sort: 'newest', period: '30d' }));
   assert.equal(last.searchParams.get('sort_by'), 'first_air_date.desc');
   assert.equal(last.searchParams.get('first_air_date.gte'), '2026-09-16');
   assert.equal(last.searchParams.get('with_watch_providers'), '8|15|119');
@@ -64,7 +124,7 @@ test('unknown ratings remain null, future releases and unsafe poster paths are e
 test('unavailable platform does not broaden the search to another platform', async () => {
   let calls = 0;
   const service = createDiscoverService(cfg(), mockFetch(() => calls++), clock);
-  const data = await service.discover(new URLSearchParams({ platform: 'peacock' }));
+  const data = await service.discover(new URLSearchParams({ platform: 'peacock', region: 'US' }));
   assert.equal(data.items.length, 0);
   assert.equal(calls, 1, 'only provider catalog was queried');
   assert.match(data.reason, /没有可用/);
