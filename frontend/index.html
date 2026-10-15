@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="集中搜索多个网盘资源来源，按平台筛选，收藏并分享你找到的资源。">
-  <meta name="theme-color" content="#f7f7f3">
+  <meta name="description" content="发现近期热门影视，按地区、平台、类型和评分挑片，一步搜索多来源网盘资源。">
+  <meta name="theme-color" content="#0b0f10">
   <title>盘觅 · Media Searcher</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
@@ -12,24 +12,37 @@
 </head>
 <body>
   <a class="skip-link" href="#main">跳到内容</a>
-  <aside class="sidebar">
-    <a class="brand" href="#search" aria-label="盘觅首页"><span class="brand-mark">盘</span><span>盘觅<small>MEDIA SEARCHER</small></span></a>
-    <div class="workspace-label">你的资源工作台</div>
-    <nav aria-label="主导航">
-      <a class="nav-item active" href="#search" data-view="search"><span class="nav-icon" data-icon="search"></span>资源搜索<span class="nav-arrow">↗</span></a>
-      <a class="nav-item" href="#discover" data-view="discover"><span class="nav-icon" data-icon="film"></span>近期上映</a>
-      <a class="nav-item" href="#favorites" data-view="favorites"><span class="nav-icon" data-icon="bookmark"></span>我的收藏<span id="favorite-count" class="count">0</span></a>
-      <a class="nav-item" href="#sources" data-view="sources"><span class="nav-icon" data-icon="layers"></span>搜索来源</a>
+  <header class="site-header">
+    <a class="brand" href="#home" aria-label="盘觅首页"><span class="brand-mark">盘</span><span>盘觅<small>MEDIA SEARCHER</small></span></a>
+    <nav class="desktop-nav" aria-label="主导航">
+      <a href="#home" data-view="home">发现</a><a href="#discover" data-view="discover">片库</a>
+      <a href="#discover?type=movie" class="category-nav">电影</a><a href="#discover?type=tv" class="category-nav">剧集</a><a href="#discover?type=anime" class="category-nav">动漫</a><a href="#discover?type=variety" class="category-nav">综艺</a>
     </nav>
-    <section class="sidebar-note"><span data-icon="spark"></span><h3>让寻找更轻松</h3><p>一个关键词，连接多个来源。好用的链接，随手收藏。</p></section>
-    <div class="sidebar-bottom"><span id="service-dot" class="status-dot"></span><span id="service-state">正在连接服务</span><span class="version">v1.0</span></div>
-  </aside>
+    <form id="header-search" class="header-search" role="search"><label class="sr-only" for="header-query">搜索影视、课程、资料</label><input id="header-query" maxlength="60" placeholder="搜索影视、课程、资料…" required><button type="submit" aria-label="搜索网盘资源"><span data-icon="search"></span></button></form>
+    <a href="#search" class="mobile-search-link icon-button" aria-label="搜索资源"><span data-icon="search"></span></a>
+    <a href="#favorites" class="header-favorites" data-view="favorites"><span data-icon="bookmark"></span><span>我的收藏</span><span id="favorite-count" class="count">0</span></a>
+  </header>
   <div class="page">
-    <header class="topbar"><span id="breadcrumb">工作台 <span>/</span> 资源搜索</span><a class="github-link" href="https://github.com/kirin7002/media_searcher" target="_blank" rel="noopener noreferrer"><span data-icon="code"></span>GitHub<span>↗</span></a></header>
-    <main id="main">
-      <section id="search-view">
+    <div class="topbar"><span id="breadcrumb">发现</span><a href="#sources">搜索来源 ↗</a></div>
+    <main id="main" tabindex="-1">
+      <section id="home-view" aria-label="发现影视">
+        <div id="home-hero" class="cinema-hero" aria-busy="true"><div class="hero-copy"><div class="eyebrow">盘觅 · 先发现，再寻找</div><h1>今晚，<br>看点好故事。</h1><p>发现值得看的影视，再去寻找你需要的资源。</p><a class="primary-button" href="#discover">浏览影视片库 <span>↗</span></a></div></div>
+        <div id="home-notice" aria-live="polite"></div>
+        <div class="shelf-heading"><div><h2>近期热门</h2><span>TMDb 本周趋势</span></div><a href="#discover?period=30d">筛选片库 <span>→</span></a></div>
+        <div id="home-trending" class="poster-shelf" aria-live="polite"><div class="empty-state"><p>正在寻找本周值得看的故事…</p></div></div>
+        <div class="shelf-heading"><div><h2>按平台发现</h2><span>选择地区，探索流媒体片库</span></div><label class="home-region">片库地区<select id="home-region" aria-label="平台片库地区"><option value="">选择地区</option><option value="US">美国</option><option value="GB">英国</option><option value="JP">日本</option><option value="KR">韩国</option><option value="HK">香港</option><option value="TW">台湾</option><option value="CA">加拿大</option><option value="AU">澳大利亚</option></select></label></div>
+        <div id="home-platforms" class="provider-hubs"></div><p id="home-platform-hint" class="directory-footnote" aria-live="polite">平台片库因地区而异；选择平台时请先指定地区。</p>
+        <div class="shelf-heading"><div><h2>近期电影</h2><span>最近 30 天首次上映 · 至少 10 人评分</span></div><a href="#discover?type=movie&period=30d&sort=newest&minVotes=10">查看全部 →</a></div>
+        <div id="home-movies" class="landscape-shelf" aria-live="polite"></div>
+        <div class="shelf-heading"><div><h2>近期新剧</h2><span>最近 30 天首次首播 · 至少 10 人评分</span></div><a href="#discover?type=tv&period=30d&sort=newest&minVotes=10">查看全部 →</a></div>
+        <div id="home-series" class="landscape-shelf" aria-live="polite"></div>
+        <div class="browse-banner"><div><h2>有偏好？去片库挑一挑。</h2><p>按地区、时间、平台、类型和评分，找到下一部想看的影视。</p></div><a class="secondary-button" href="#discover">打开筛选片库 →</a></div>
+      </section>
+      <section id="search-view" hidden>
+        <a id="search-back" class="back-link" href="#home">← 返回发现</a>
         <div class="hero"><div class="eyebrow"><span class="tiny-line"></span>寻找，从这里开始</div><h1>好资源，<span>不必四处找。</span></h1><p>电影、书籍、课程、资料……把分散的网盘资源，放进同一个搜索框。</p></div>
         <form id="search-form" class="search-box" role="search"><span data-icon="search"></span><label class="sr-only" for="query">资源关键词</label><input id="query" name="q" maxlength="60" placeholder="输入资源名称或关键词" autocomplete="off" required><button class="primary-button" type="submit">搜索资源<span data-icon="arrow"></span></button></form>
+        <div id="search-context" class="search-context" hidden></div>
         <div class="suggestions"><span id="suggestion-label">试着搜</span><div id="suggestion-list"></div></div>
         <div class="filters"><div class="platform-tabs" id="platform-tabs" role="group" aria-label="筛选网盘类型"></div><div class="sort-wrap"><label class="sr-only" for="sort">排序方式</label><select id="sort"><option value="latest">最新收录</option><option value="hot">来源热度</option></select></div></div>
         <div class="source-picker"><span>搜索来源</span><div id="source-options"></div><a href="#sources">管理来源<span>↗</span></a></div>
@@ -41,27 +54,34 @@
       <section id="favorites-view" hidden><div class="section-hero"><div class="eyebrow">留下值得再看的</div><h1>我的收藏<span>。</span></h1><p>收藏保存在当前浏览器，方便下次继续寻找。</p></div><div class="results-heading"><h2 id="favorites-title">收藏的资源</h2><button id="export-favorites" class="secondary-button"><span data-icon="download"></span>导出收藏</button></div><div id="favorites-results" class="result-grid"></div></section>
       <section id="sources-view" hidden><div class="section-hero"><div class="eyebrow">每一个结果，都有来处</div><h1>连接更多<span>可能。</span></h1><p>已接入的来源参与搜索，其他网站可以直接访问。</p></div><div class="results-heading"><h2>已接入的搜索服务</h2><span class="subtle-pill">密钥在服务端管理</span></div><div id="provider-directory" class="source-grid"></div><div class="results-heading directory-heading"><h2>更多资源入口</h2><span class="muted">来源调研 · 2026.10.15</span></div><div id="site-directory" class="source-grid"></div><p class="directory-footnote">这些入口尚未接入自动搜索；网站首页可访问不代表所有分享链接有效。</p></section>
       <section id="discover-view" hidden>
-        <div class="section-hero"><div class="eyebrow">影视片库 · 新片发现</div><h1>最近，<span>看点什么。</span></h1><p>寻找电影、剧集、动漫与综艺，选中片名，一步搜索网盘资源。</p></div>
-        <div id="streaming-platforms" class="streaming-platforms" role="group" aria-label="流媒体平台"></div>
+        <div class="section-hero"><div class="eyebrow">THE COLLECTION · 影视片库</div><h1>找到你的<span>下一部。</span></h1><p>按偏好挑选影视，点击海报搜索网盘资源。</p></div>
+        <div id="catalog-types" class="catalog-types" role="group" aria-label="影视类型快捷筛选"></div>
+        <details id="catalog-filter-panel" class="catalog-filter-panel" open><summary>筛选片库 <span id="catalog-filter-count"></span><span>⌄</span></summary>
         <form id="discover-filters" class="discover-filters">
           <label>片库地区<select id="discover-region"><option value="all">不限</option><option value="US">美国</option><option value="GB">英国</option><option value="JP">日本</option><option value="KR">韩国</option><option value="HK">香港</option><option value="TW">台湾</option><option value="CA">加拿大</option><option value="AU">澳大利亚</option></select></label>
           <label>作品类型<select id="discover-type"><option value="tv">电视剧</option><option value="movie">电影</option><option value="anime">动漫剧集</option><option value="anime_movie">动漫电影</option><option value="variety">综艺</option></select></label>
           <label>时间范围<select id="discover-period"><option value="month">本月已上映</option><option value="30d">最近 30 天</option><option value="90d">最近 90 天</option><option value="180d">最近半年</option><option value="365d">最近 1 年</option><option value="3y">最近 3 年</option><option value="all">全部时间</option><option value="custom">自定义日期</option></select></label>
-          <label>排序<select id="discover-sort"><option value="rating">TMDb 评分从高到低</option><option value="newest">上映时间从新到旧</option></select></label>
+          <label>排序<select id="discover-sort"><option value="rating">TMDb 评分从高到低</option><option value="rating_asc">TMDb 评分从低到高</option><option value="newest">上映时间从新到旧</option></select></label>
+          <label>最低 TMDb 评分<select id="discover-rating"><option value="0">不限</option><option value="5">5 分以上</option><option value="6">6 分以上</option><option value="7">7 分以上</option><option value="8">8 分以上</option><option value="9">9 分以上</option></select></label>
           <label>评分人数<select id="discover-votes"><option value="0">不限</option><option value="10">至少 10 人</option><option value="100">至少 100 人</option></select></label>
           <div id="discover-custom-dates" class="custom-dates" hidden><label>开始日期<input type="date" id="discover-from"></label><label>结束日期<input type="date" id="discover-to"></label><button type="button" id="discover-apply-dates" class="secondary-button">应用日期</button></div>
         </form>
+        <div class="platform-filter-label">流媒体平台</div><div id="streaming-platforms" class="streaming-platforms" role="group" aria-label="流媒体平台"></div>
         <p class="directory-footnote" id="discover-region-hint">不限地区时展示全球作品；不同地区的平台片库不同，按平台筛选时请先选择具体地区。</p>
+        </details>
+        <div class="catalog-selection"><p id="catalog-selected" aria-live="polite"></p><button id="catalog-reset" type="button" class="text-button">清空筛选</button></div>
         <div id="discover-notice" aria-live="polite"></div>
         <div class="results-heading"><div><h2 id="discover-title">本月新剧</h2><p id="discover-summary">正在连接影视数据服务…</p></div><button id="discover-refresh" class="secondary-button">重新加载</button></div>
         <div id="discover-results" class="movie-grid" aria-live="polite" aria-busy="false"></div>
         <div class="load-more-wrap"><button id="discover-more" class="secondary-button" hidden>加载更多作品 ↓</button></div>
         <p class="directory-footnote">时间按作品首次上映或首播日期筛选，非平台上架日期。动漫按动画分类，综艺包含真人秀、脱口秀；评分来自 TMDb，未评分作品显示“暂无评分”。</p>
-        <section class="data-credits" aria-label="影视数据来源"><a href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer"><img src="/tmdb-logo.svg" alt="TMDb" width="95" height="14"></a><div><p>影视信息与评分：TMDb · 平台片库信息：<a href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer">JustWatch</a></p><p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p></div></section>
       </section>
-      <footer><span>盘觅 <span class="footer-dot">·</span> 给寻找一个入口</span><span>公开分享索引 · 链接状态以网盘页面为准</span></footer>
+      <section class="data-credits" aria-label="影视数据来源"><a href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer"><img src="/tmdb-logo.svg" alt="TMDb" width="95" height="14"></a><div><p>影视信息与评分：TMDb · 平台片库信息：<a href="https://www.justwatch.com" target="_blank" rel="noopener noreferrer">JustWatch</a></p><p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p></div></section>
+      <footer><span>盘觅 <span class="footer-dot">·</span> 先发现，再寻找</span><span><span id="service-dot" class="status-dot"></span><span id="service-state">正在连接服务</span></span><a href="#sources">搜索来源</a><a href="https://github.com/kirin7002/media_searcher" target="_blank" rel="noopener noreferrer">GitHub ↗</a><span>公开分享索引 · 链接状态以网盘页面为准</span></footer>
     </main>
   </div>
+  <nav class="mobile-nav" aria-label="移动端导航"><a href="#home" data-view="home"><span data-icon="spark"></span>发现</a><a href="#discover" data-view="discover"><span data-icon="film"></span>片库</a><a href="#search" data-view="search"><span data-icon="search"></span>搜索</a><a href="#favorites" data-view="favorites"><span data-icon="bookmark"></span>收藏</a></nav>
+  <dialog id="media-dialog" aria-labelledby="media-dialog-title"><button type="button" class="dialog-close icon-button" aria-label="关闭影视详情">×</button><div id="media-dialog-content"></div></dialog>
   <div id="toast" class="toast" role="status" hidden></div>
   <dialog id="copy-dialog"><h2>复制分享信息</h2><p>浏览器未允许自动复制，可在这里手动复制。</p><textarea id="copy-value" readonly aria-label="分享信息"></textarea><button id="close-copy" class="primary-button">关闭</button></dialog>
 </body>

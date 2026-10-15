@@ -1,5 +1,6 @@
 import { PLATFORMS, safeShareUrl, mergeItems } from './shared.js';
 import { initDiscovery } from './discover.js';
+import { pageFromLocation } from './catalog-state.js';
 
 const $ = id => document.getElementById(id);
 const icons = {
@@ -19,12 +20,13 @@ const icons = {
 };
 const icon = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.link}</svg>`;
 document.querySelectorAll('[data-icon]').forEach(el => { el.innerHTML = icon(el.dataset.icon); });
+document.querySelector('.skip-link').addEventListener('click', event => { event.preventDefault(); $('main').focus(); $('main').scrollIntoView(); });
 const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const readStored = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch { return fallback; } };
 const writeStored = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { toast('浏览器未允许保存本地数据'); } };
 const initialFavorites = readStored('panmi:favorites', []);
 const favorites = new Map((Array.isArray(initialFavorites) ? initialFavorites : []).filter(item => item && safeShareUrl(item.url) && typeof item.title === 'string' && Array.isArray(item.sources)).map(item => [item.id, item]));
-const state = { view: 'search', query: '', platform: 'all', sort: 'latest', page: 1, items: [], providers: [], selected: [], checkingEnabled: false, hasMore: false, busy: false, controller: null, urlKey: location.search };
+const state = { view: 'home', query: '', platform: 'all', sort: 'latest', page: 1, items: [], providers: [], selected: [], checkingEnabled: false, hasMore: false, busy: false, controller: null, urlKey: location.search, media: null };
 const labels = { unchecked: '未检测', valid: '链接有效', invalid: '链接失效', locked: '需要提取码', unknown: '未确认', checking: '检测中' };
 let toastTimer;
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 2500); }
@@ -85,12 +87,18 @@ function renderFavorites() {
 }
 
 function setView() {
-  const view = location.hash.slice(1);
-  state.view = ['search', 'favorites', 'sources', 'discover'].includes(view) ? view : 'search';
-  for (const name of ['search', 'favorites', 'sources', 'discover']) $(`${name}-view`).hidden = name !== state.view;
-  document.querySelectorAll('[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === state.view));
-  $('breadcrumb').innerHTML = `工作台 <span>/</span> ${{ search: '资源搜索', favorites: '我的收藏', sources: '搜索来源', discover: '近期上映' }[state.view]}`;
+  state.view = pageFromLocation(location.hash, location.search);
+  for (const name of ['home', 'search', 'favorites', 'sources', 'discover']) $(`${name}-view`).hidden = name !== state.view;
+  document.body.dataset.page = state.view;
+  document.querySelectorAll('[data-view]').forEach(el => {
+    const active = el.dataset.view === state.view;
+    el.classList.toggle('active', active);
+    if (active) el.setAttribute('aria-current', 'page'); else el.removeAttribute('aria-current');
+  });
+  $('breadcrumb').textContent = { home: '发现', search: '网盘资源搜索', favorites: '我的收藏', sources: '搜索来源', discover: '影视片库' }[state.view];
+  document.title = `${$('breadcrumb').textContent} · 盘觅`;
   if (state.view === 'favorites') renderFavorites();
+  window.dispatchEvent(new Event('panmi:viewchange'));
 }
 
 function updateUrl() {
@@ -162,13 +170,18 @@ async function search({ append = false, url = true } = {}) {
 }
 
 async function copy(value) {
-  try { await navigator.clipboard.writeText(value); toast('已复制'); }
+  let timeout;
+  try {
+    await Promise.race([navigator.clipboard.writeText(value), new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('clipboard timeout')), 1500); })]);
+    toast('已复制');
+  }
   catch { $('copy-value').value = value; $('copy-dialog').showModal(); $('copy-value').select(); }
+  finally { clearTimeout(timeout); }
 }
 
 document.addEventListener('click', async event => {
   const queryButton = event.target.closest('[data-query]');
-  if (queryButton) { $('query').value = queryButton.dataset.query; state.query = queryButton.dataset.query; search(); }
+  if (queryButton) { clearMedia(); $('query').value = queryButton.dataset.query; state.query = queryButton.dataset.query; search(); }
   const platformButton = event.target.closest('[data-platform]');
   if (platformButton) { state.platform = platformButton.dataset.platform; platformTabs(); if (state.query) search(); }
   if (event.target.closest('#retry-search')) search({ append: state.items.length > 0 });
@@ -195,7 +208,9 @@ document.addEventListener('click', async event => {
   }
 });
 
-$('search-form').addEventListener('submit', event => { event.preventDefault(); state.query = $('query').value.trim(); search(); });
+function clearMedia() { state.media = null; $('search-context').hidden = true; }
+$('search-form').addEventListener('submit', event => { event.preventDefault(); state.query = $('query').value.trim(); if (state.media && state.query !== state.media.title && state.query !== state.media.originalTitle) clearMedia(); search(); });
+$('header-search').addEventListener('submit', event => { event.preventDefault(); clearMedia(); state.query = $('header-query').value.trim(); $('query').value = state.query; updateUrl(); search({ url: false }); window.scrollTo({ top: 0 }); });
 $('platform-tabs').addEventListener('change', event => { if (event.target.id === 'more-platforms') { state.platform = event.target.value; platformTabs(); if (state.query) search(); } });
 $('sort').addEventListener('change', event => { state.sort = event.target.value; if (state.query) search(); });
 $('source-options').addEventListener('change', event => {
@@ -214,7 +229,7 @@ addEventListener('popstate', () => {
   // Hash-only navigation switches views without reissuing paid or slow queries.
   if (state.urlKey !== location.search) {
     restoreUrl();
-    if (state.query) search({ url: false });
+    if (state.query && pageFromLocation(location.hash, location.search) === 'search') search({ url: false });
     else {
       state.controller?.abort(); state.items = []; state.hasMore = false; state.busy = false;
       $('results').setAttribute('aria-busy', 'false'); $('search-notices').textContent = '';
@@ -230,6 +245,7 @@ function restoreUrl() {
   state.urlKey = location.search;
   const params = new URLSearchParams(location.search);
   state.query = (params.get('q') || '').slice(0, 60);
+  if (state.media && state.query !== state.media.title && state.query !== state.media.originalTitle) clearMedia();
   state.platform = Object.hasOwn(PLATFORMS, params.get('pan')) ? params.get('pan') : 'all';
   state.sort = params.get('sort') === 'hot' ? 'hot' : 'latest';
   const desired = (params.get('sources') || '').split(',');
@@ -247,7 +263,7 @@ async function initialize() {
     state.providers = data.sources; state.checkingEnabled = data.checkingEnabled;
     $('service-state').textContent = '服务运行中'; $('service-dot').classList.add('connected');
     restoreUrl(); renderDirectories(); renderFavorites();
-    if (state.query) await search({ url: false });
+    if (state.query && state.view === 'search') await search({ url: false });
   } catch {
     $('service-state').textContent = '服务连接失败'; $('service-dot').classList.add('warning');
     $('search-notices').innerHTML = '<div class="error-banner">暂时无法连接后端服务，请刷新页面重试。</div>';
@@ -255,10 +271,17 @@ async function initialize() {
 }
 initialize().then(() => initDiscovery({
   icon, escape,
-  onSearch(title) {
+  onSearch(item, title = item.title) {
+    state.media = item;
+    const origin = location.hash || '#home';
+    $('search-back').href = origin;
+    $('search-back').textContent = origin.startsWith('#discover') ? '← 返回片库' : '← 返回发现';
+    $('search-context').innerHTML = `${item.posterUrl ? `<img src="${escape(item.posterUrl)}" alt="" width="52" height="78">` : ''}<div><strong>${escape(item.title)}</strong><p>${escape(item.originalTitle)} · ${escape(item.categoryName)}</p><p>${escape(item.overview || '暂无简介')}</p></div>${item.originalTitle !== item.title ? '<button type="button" class="secondary-button" id="context-original">用原名搜索</button>' : ''}`;
+    $('search-context').hidden = false;
+    $('context-original')?.addEventListener('click', () => { state.query = [...item.originalTitle].slice(0, 60).join(''); $('query').value = state.query; search(); });
     state.query = [...title].slice(0, 60).join('');
     $('query').value = state.query;
     state.platform = 'all'; platformTabs();
-    search(); window.scrollTo({ top: 0 });
+    updateUrl(); search({ url: false }); window.scrollTo({ top: 0 });
   }
 }));

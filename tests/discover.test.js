@@ -166,3 +166,90 @@ test('upstream authentication errors are retryable and token details are redacte
   for (let i = 0; i < 2; i++) await assert.rejects(service.discover(new URLSearchParams()), error => !error.message.includes('test-token') && error.message.includes('401'));
   assert.equal(calls, 2);
 });
+
+test('rating threshold and ascending ordering reach TMDb; invalid thresholds never query upstream', async () => {
+  const requests = [];
+  const service = createDiscoverService(cfg(), mockFetch(url => requests.push(url)), clock);
+  await service.discover(new URLSearchParams({ minRating: '7.5', sort: 'rating_asc' }));
+  assert.equal(requests.at(-1).searchParams.get('vote_average.gte'), '7.5');
+  assert.equal(requests.at(-1).searchParams.get('sort_by'), 'vote_average.asc');
+  for (const minRating of ['-1', '11', 'Infinity', 'NaN', '7;drop', '1e1']) {
+    const count = requests.length;
+    await assert.rejects(service.discover(new URLSearchParams({ minRating })), error => error.status === 400);
+    assert.equal(requests.length, count);
+  }
+});
+
+test('backdrop URLs are allowlisted independently from poster paths', async () => {
+  const service = createDiscoverService(cfg(), mockFetch(() => {}, [row({ backdrop_path: '/wide123.jpg' }), row({ id: 124, backdrop_path: '//evil.example/a.jpg' })]), clock);
+  const result = await service.discover(new URLSearchParams());
+  assert.equal(result.items[0].backdropUrl, 'https://image.tmdb.org/t/p/w1280/wide123.jpg');
+  assert.equal(result.items[1].backdropUrl, null);
+});
+
+test('home uses actual weekly trends, excludes people/adult/future titles and coalesces requests', async () => {
+  const requests = [];
+  const upstream = mockFetch(url => requests.push(url));
+  const service = createDiscoverService(cfg(), async (value, options) => {
+    const url = new URL(value);
+    if (url.pathname.includes('/trending/')) {
+      requests.push(url);
+      return Response.json({ results: [
+        row({ media_type: 'tv', backdrop_path: '/wide.jpg' }),
+        row({ id: 234, media_type: 'person' }), row({ id: 345, media_type: 'movie', release_date: '2026-11-01' }),
+        row({ id: 456, media_type: 'tv', adult: true }), row({ id: -1, media_type: 'tv' })
+      ] });
+    }
+    return upstream(value, options);
+  }, clock);
+  const [result, again] = await Promise.all([service.home(), service.home()]);
+  assert.equal(result.trendSource, 'TMDb 本周趋势');
+  assert.deepEqual(result.trending.map(item => item.id), ['tv:123']);
+  assert.equal(result.featured[0].backdropUrl, 'https://image.tmdb.org/t/p/w1280/wide.jpg');
+  assert.equal(result.partial, false);
+  assert.deepEqual(again, result);
+  assert.equal(requests.filter(url => url.pathname === '/3/trending/all/week').length, 1);
+  assert.ok(requests.filter(url => url.pathname.includes('/discover/')).every(url => url.searchParams.get('vote_count.gte') === '10' && url.searchParams.get('sort_by').endsWith('.desc')));
+});
+
+test('home preserves successful sections on partial failure, retries errors and fails when all fail', async () => {
+  let trendingCalls = 0;
+  const upstream = mockFetch();
+  const service = createDiscoverService(cfg(), async (value, options) => {
+    if (new URL(value).pathname.includes('/trending/')) { trendingCalls++; return new Response('not allowed', { status: 503 }); }
+    return upstream(value, options);
+  }, clock);
+  for (let i = 0; i < 2; i++) {
+    const result = await service.home();
+    assert.equal(result.partial, true);
+    assert.equal(result.trending.length, 0);
+    assert.ok(result.series.length);
+    assert.ok(result.featured.length);
+    assert.deepEqual(result.notices, ['本周趋势暂时无法加载']);
+  }
+  assert.equal(trendingCalls, 2);
+  await assert.rejects(createDiscoverService(cfg(), async () => new Response('bad', { status: 503 }), clock).home());
+  let calls = 0;
+  await assert.rejects(createDiscoverService(loadConfig({}), async () => { calls++; }).home(), error => error.status === 503);
+  assert.equal(calls, 0);
+});
+
+test('new homepage route obeys HTTP methods and serves catalog state without exposing configuration', async t => {
+  const server = createApp({ config: loadConfig({}) });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  assert.equal((await fetch(`${base}/api/discover/home`)).status, 503);
+  const wrong = await fetch(`${base}/api/discover/home`, { method: 'POST' });
+  assert.equal(wrong.status, 405);
+  assert.equal(wrong.headers.get('allow'), 'GET');
+  assert.equal((await fetch(`${base}/catalog-state.js`)).status, 200);
+});
+
+test('rating filters enforce the actual returned score and sort unscored entries last', async () => {
+  const service = createDiscoverService(cfg(), mockFetch(() => {}, [row({ id: 1, vote_average: 8.1 }), row({ id: 2, vote_average: 6.94 }), row({ id: 3, vote_count: 0 }), row({ id: 4, vote_average: 7.2 })]), clock);
+  const result = await service.discover(new URLSearchParams({ minRating: '7', sort: 'rating_asc' }));
+  assert.deepEqual(result.items.map(item => item.id), ['tv:4', 'tv:1']);
+  const unrestricted = await service.discover(new URLSearchParams({ sort: 'rating_asc' }));
+  assert.equal(unrestricted.items.at(-1).rating, null);
+});
