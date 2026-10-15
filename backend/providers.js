@@ -33,13 +33,13 @@ export class UpstreamError extends Error {
   constructor(message) { super(message); this.name = 'UpstreamError'; }
 }
 
-async function requestBody(fetchImpl, url, options, timeout) {
+async function requestBody(fetchImpl, url, options, timeout, acceptedStatuses = []) {
   try {
     const response = await fetchImpl(url, {
       ...options, headers: { Accept: 'application/json', 'User-Agent': 'MediaSearcher/1.0', ...options?.headers },
       signal: AbortSignal.timeout(timeout), redirect: 'error'
     });
-    if (!response.ok) throw new UpstreamError(`来源返回 HTTP ${response.status}`);
+    if (!response.ok && !acceptedStatuses.includes(response.status)) throw new UpstreamError(`来源返回 HTTP ${response.status}`);
     let length = 0;
     const chunks = [];
     for await (const chunk of response.body) {
@@ -56,8 +56,8 @@ async function requestBody(fetchImpl, url, options, timeout) {
   }
 }
 
-export async function requestJson(fetchImpl, url, options, timeout) {
-  try { return JSON.parse(await requestBody(fetchImpl, url, options, timeout)); }
+export async function requestJson(fetchImpl, url, options, timeout, acceptedStatuses = []) {
+  try { return JSON.parse(await requestBody(fetchImpl, url, options, timeout, acceptedStatuses)); }
   catch (error) {
     if (error instanceof SyntaxError) throw new UpstreamError('来源未返回有效的 JSON 数据');
     throw error;
@@ -133,7 +133,32 @@ export function createProviders(config, fetchImpl = fetch) {
     if (data.code !== 0) throw new UpstreamError(({ 1004: '海搜 API key 权限不足', 1005: '海搜额度不足', 1003: '海搜繁忙，请稍后重试' })[data.code] || '海搜接口调用失败');
     return data.result;
   }
-  return [pansousuo, pansou, haisou, ...createPublicProviders(config, { requestText, requestJson, normalizeItem, UpstreamError }, fetchImpl)].map(provider => {
+  const qiling = {
+    id: 'qiling', name: '起零数据', enabled: Boolean(config.qilingToken), website: 'https://api.istero.com/service/doc/pan-resource-search',
+    description: '通过开放接口搜索阿里、夸克、百度和迅雷分享；不提供分页，时间按来源实际字段展示。',
+    disabledReason: '尚未配置起零数据 API Token', supportsCheck: false, supportsPagination: false,
+    async search({ query, platform, page }) {
+      const disks = { aliyun: '0', quark: '1', baidu: '2', xunlei: '3' };
+      const empty = { items: [], total: 0, totalType: 'records', hasMore: false };
+      if (page > 1 || (platform !== 'all' && !Object.hasOwn(disks, platform))) return empty;
+      const url = new URL('https://api.istero.com/resource/v1/disk/source/search');
+      url.searchParams.set('keywords', query);
+      if (platform !== 'all') url.searchParams.set('disk', disks[platform]);
+      const data = await requestJson(fetchImpl, url, { headers: { Authorization: `Bearer ${config.qilingToken}` } }, config.qilingTimeoutMs, [400, 401, 403, 404, 429, 500, 502]);
+      const code = Number(data?.code);
+      // This API reports an ordinary search miss as HTTP/business 400.
+      if (code === 400 && data.message === '未找到相关网盘资源' && (!data.data || (Array.isArray(data.data) && !data.data.length))) return empty;
+      if (code !== 200) throw new UpstreamError(({
+        202: '起零数据额度不足', 302: '起零数据接口维护中', 400: '起零数据拒绝了查询参数',
+        401: '起零数据 Token 鉴权失败', 403: '起零数据 Token 鉴权失败', 404: '起零数据接口不存在',
+        429: '起零数据请求频率受限，请稍后重试', 500: '起零数据服务暂时异常', 502: '起零数据账号受限'
+      })[code] || '起零数据接口调用失败');
+      if (!Array.isArray(data.data)) throw new UpstreamError('起零数据返回格式发生变化');
+      const rows = data.data.slice(0, 300);
+      return { items: rows.filter(row => row && typeof row === 'object').map(row => normalizeItem({ title: row.name, url: row.url }, qiling)).filter(Boolean), total: data.data.length, totalType: 'records', hasMore: false };
+    }
+  };
+  return [pansousuo, pansou, haisou, qiling, ...createPublicProviders(config, { requestText, requestJson, normalizeItem, UpstreamError }, fetchImpl)].map(provider => {
     if (config.disabledSources?.includes(provider.id)) return { ...provider, enabled: false, supportsCheck: false, disabledReason: '已由服务器配置停用' };
     return provider;
   });

@@ -4,7 +4,7 @@
 
 ## 功能
 
-- 真实搜索：默认接入盘搜索、PanSearch、人人电影网，以及两个公开影视频道；可选接入海搜和自部署 PanSou。
+- 真实搜索：默认接入盘搜索、PanSearch、人人电影网，以及两个公开影视频道；可选接入海搜、起零数据和自部署 PanSou。
 - 网盘筛选、最新收录 / 来源热度排序、分页加载与可分享的查询 URL。
 - 按网盘分享 ID 去重，合并多个来源并保留各来源的链接与提取码。
 - 打开原始分享链接、复制分享信息、收藏与 JSON 导出。
@@ -51,6 +51,8 @@ npm start
 | `PANSOU_BASE_URL` | 空 | 自部署 PanSou 根地址；配置后启用 |
 | `PANSOU_TOKEN` | 空 | PanSou 认证 Token（如开启认证） |
 | `HAISOU_API_KEY` | 空 | 海搜开放接口 key；配置后启用 |
+| `QILING_API_TOKEN` | 空 | 起零数据 Bearer Token；配置后启用，仅在后端保存 |
+| `QILING_TIMEOUT_MS` | `20000` | 起零数据独立请求超时 |
 | `SOURCE_TIMEOUT_MS` | `12000` | 盘搜索与 PanSou 请求超时 |
 | `HAISOU_TIMEOUT_MS` | `65000` | 海搜超时，按其文档避免过早终止扣费请求 |
 | `CACHE_TTL_SECONDS` | `120` | 成功搜索响应缓存时长；0 为关闭 |
@@ -61,6 +63,8 @@ npm start
 | `DISCOVER_TIMEZONE` | `Asia/Shanghai` | 各时间范围及“今天”的日期边界 |
 
 海搜按站方额度计费，仓库不包含 key。收藏保存在当前浏览器，不同步到服务器；服务端缓存为内存缓存，重启后清空。
+
+起零数据支持阿里云盘、夸克、百度和迅雷的资源搜索，配置 `QILING_API_TOKEN` 后重启即可启用。Token 通过 Authorization 请求头发送，不放进 URL。该来源没有文档支持的分页、时间排序或链接检测，不重复请求第二页，也不伪造发布时间。明确的“未找到相关网盘资源”响应作为空结果，其他鉴权、额度、限流和格式错误仍显示失败。接口与额度以[官方文档](https://api.istero.com/service/doc/pan-resource-search)为准。
 
 影视页默认地区不限、评分人数不限。未指定平台时直接查询全球作品；指定 Netflix 等平台但不指定地区时，自动合并当前支持的美国、英国、日本、韩国、香港、台湾、加拿大和澳大利亚片库，并按作品 ID 去重，不暗中套用美国区。片库中仍可选择具体地区缩小范围。
 
@@ -76,7 +80,7 @@ npm start
 
 TMDb 未配置时，页面明确显示数据源未连接，不使用虚构片单。申请入口为 [TMDb API 设置](https://www.themoviedb.org/settings/api)。填入 `.env` 后重启服务；Docker 使用 `docker compose up -d --build`。配置不会返回给前端。新片列表成功响应缓存 10 分钟，失败不会缓存。
 
-来源站点可能改接口、换域名或限制访问，详见 [来源调研](docs/SOURCES.md)。海搜和 PanSou 适配器经过隔离测试，真实鉴权调用需要自己的配置。
+来源站点可能改接口、换域名或限制访问，详见 [来源调研](docs/SOURCES.md)。海搜、起零数据和 PanSou 适配器经过隔离测试，真实鉴权调用需要自己的配置。
 
 PanSearch 一条记录可能包含多个分享链接，后端会逐个提取并按分享 ID 去重；其网盘过滤作用于当前返回页。人人电影网只读取搜索结果中的影视正文，每页最多 6 个详情页，整体超时沿用 `SOURCE_TIMEOUT_MS`；一个详情读取失败时仍保留其他结果。
 
@@ -110,7 +114,7 @@ curl http://127.0.0.1:3210/api/health
 
 影视查询类型 `type` 支持 `tv/movie/anime/anime_movie/variety`；时间 `period` 支持 `month/30d/90d/180d/365d/3y/all/custom`。自定义示例：`/api/discover?type=anime&period=custom&from=2024-01-01&to=2025-12-31`。省略 `region` 和 `minVotes` 时，分别按 `all` 与 `0` 处理。
 
-`pan` 取值见 `frontend/shared.js`；`sources` 从 `/api/sources` 的已启用来源中选择。`sort` 支持 `latest`、`hot`，排序以各来源为准；公开页面与频道保持来源原始顺序。PanSou 和最近公开频道无分页能力，第一页聚合后不重复查询后续页。
+`pan` 取值见 `frontend/shared.js`；`sources` 从 `/api/sources` 的已启用来源中选择。`sort` 支持 `latest`、`hot`，排序以各来源为准；公开页面与频道保持来源原始顺序。PanSou、起零数据和最近公开频道无分页能力，第一页聚合后不重复查询后续页。
 
 响应包括 `items`、`sources`、`hasMore`、`partial` 和耗时。结果数为当前返回页去重后的链接数量，`sourceTotal` 是来源自报命中数量之和，不是全网去重总数。
 

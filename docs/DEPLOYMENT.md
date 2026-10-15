@@ -16,6 +16,8 @@ cp .env.example .env
 
 编辑 `.env`，填写要启用的来源。默认不填写海搜或 PanSou 也可以运行。
 
+起零数据为可选来源：在服务器 `.env` 设置 `QILING_API_TOKEN`，按需设置 `QILING_TIMEOUT_MS`（默认 20000），然后执行 `docker compose up -d`。Token 仅由后端通过 Bearer 请求头使用；不要把实际值写入 Compose 文件、命令行参数或 Git。搜索接口支持四种网盘，不提供分页和链接检测。
+
 默认启用盘搜索、PanSearch、人人电影网、阿里4K影视公开频道和夸克影视公开频道。服务器需要能访问对应站点与 `t.me`；若某来源受网络限制，可在 `.env` 的 `DISABLED_SOURCES` 填写其 ID。将 `TELEGRAM_CHANNELS` 设为空可关闭所有公开频道。各来源独立失败，不会阻止其他来源返回结果。
 
 “近期上映”需要额外填写 `TMDB_READ_ACCESS_TOKEN`（或 `TMDB_API_KEY`）；该配置仅放在服务器 `.env`。TMDb 账户、凭据及使用权限需由项目所有者申请，应用已接入电影与电视剧 Discover API、地区播放平台筛选和 TMDb 真实评分。未配置时网盘搜索仍正常运行，影视页显示数据服务尚未连接。

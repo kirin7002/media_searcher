@@ -89,3 +89,13 @@ PanSearch 与 JSON 接口候选的字段研究参考 [PanSou 的公开来源适�
 本轮未启用的候选包括：趣盘搜旧接口出现 TLS 证书验证失败，其旧网站入口已重定向到另一站点；即刻盘接口连接失败；盘666 返回 403；盘他访问失败；混合盘既有请求格式返回参数错误。这些来源没有被标为可用，也没有关闭 TLS 校验或使用账号绕过访问限制。
 
 配置 `DISABLED_SOURCES` 可以停用某个来源；`TELEGRAM_CHANNELS` 可以替换为最多五个公开频道，设为空则关闭所有频道。海搜和自部署 PanSou 仍作为可选服务保留。
+
+## 起零数据开放接口
+
+2026-10-15 新增可选 `qiling` 适配器，凭据使用 `QILING_API_TOKEN`，独立超时为 `QILING_TIMEOUT_MS`。官方文档：[网盘资源搜索](https://api.istero.com/service/doc/pan-resource-search)。
+
+- GET `https://api.istero.com/resource/v1/disk/source/search`，通过 Authorization: Bearer 鉴权；查询参数为 `keywords`，可选 `disk=0/1/2/3` 分别对应阿里、夸克、百度、迅雷。
+- 原始接口实测：文档示例“吴京”返回 HTTP 200、业务 code 200 和 2 条包含 name/url/disk/type 的记录；“时光代理人”返回 HTTP 400、明确的未找到结果提示。这种特定空结果不当作服务异常。
+- 仅提取安全且已识别网盘的 URL；标题规范化，分享链接中的提取码保留，发布时间未知时留空。以真实 URL 判断网盘类型。
+- 没有文档支持的分页或时间排序；第一页保留来源原始顺序，后续页和不支持的网盘类型不会重复调用。
+- 业务 code 与 HTTP 状态都需要检查；鉴权、额度、限流及结构变化不能伪装为空结果。公开响应不返回 Token。

@@ -20,6 +20,7 @@ export function loadConfig(env = process.env) {
     port: integer(env, 'PORT', 3210, 1, 65535),
     timeoutMs: integer(env, 'SOURCE_TIMEOUT_MS', 12000, 100, 120000),
     haisouTimeoutMs: integer(env, 'HAISOU_TIMEOUT_MS', 65000, 1000, 120000),
+    qilingTimeoutMs: integer(env, 'QILING_TIMEOUT_MS', 20000, 1000, 120000),
     cacheTtlMs: integer(env, 'CACHE_TTL_SECONDS', 120, 0, 3600) * 1000,
     rateLimit: integer(env, 'RATE_LIMIT_PER_MINUTE', 60, 1, 10000),
     trustProxy: env.TRUST_PROXY === 'true',
@@ -31,6 +32,7 @@ export function loadConfig(env = process.env) {
     pansouBaseUrl: baseUrl(env.PANSOU_BASE_URL),
     pansouToken: env.PANSOU_TOKEN || '',
     haisouApiKey: env.HAISOU_API_KEY || '',
+    qilingToken: env.QILING_API_TOKEN || '',
     tmdbToken: env.TMDB_READ_ACCESS_TOKEN || '',
     tmdbApiKey: env.TMDB_API_KEY || '',
     discoverTimezone: env.DISCOVER_TIMEZONE || 'Asia/Shanghai'
