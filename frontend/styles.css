@@ -23,3 +23,26 @@
 @media(max-width:767px){.site-header .mobile-search-link{display:inline-flex}}
 @media(max-width:1023px){.poster-shelf{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(140px,1fr)}}
 @media(max-width:767px){.poster-shelf{grid-auto-columns:43%}}
+
+/* Compact mobile feature: landscape artwork, copy over the lower image. */
+.hero-swipe-hint{display:none}
+@media(max-width:767px){
+.cinema-hero{display:block;height:340px;min-height:0;padding:0;touch-action:pan-y pinch-zoom}
+.cinema-hero .hero-art{position:absolute;inset:0 0 auto;z-index:-2;width:100%;height:auto;aspect-ratio:16/9;overflow:hidden}
+.hero-art>img{display:block;width:100%;height:100%;object-fit:cover;object-position:center;-webkit-user-drag:none;user-select:none}
+.hero-shade{background:linear-gradient(0deg,#0b0f10 0%,#0b0f10f5 16%,#0b0f10b8 43%,#0b0f1022 78%)}
+.hero-copy{position:absolute;left:0;right:0;bottom:40px;width:100%;max-width:100%;padding:0 20px;margin:0}
+.hero-copy .eyebrow{font-size:10px;letter-spacing:.12em;margin-bottom:6px}
+.hero-copy h1{font-size:28px;line-height:1.23;letter-spacing:.015em;margin-bottom:7px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.hero-copy .hero-original{display:none}
+.hero-meta{font-size:10px;gap:9px}
+.hero-overview{font-size:12px;line-height:1.6;-webkit-line-clamp:2;margin:8px 0 12px;color:#c6ced0}
+.hero-actions{grid-template-columns:1fr auto;gap:9px}
+.hero-actions button{min-height:44px;padding:10px 15px;font-size:12px}
+.hero-switcher{bottom:13px;left:20px;right:auto;justify-content:flex-start;gap:6px}
+.hero-switcher button{width:6px;height:6px;min-height:6px;border-radius:6px;background:#91a0a670}
+.hero-switcher button:before{inset:-19px -2px}
+.hero-switcher button[aria-pressed=true]{width:24px;background:var(--accent)}
+.hero-switcher .hero-swipe-hint{display:block;position:absolute;right:auto;bottom:auto;overflow:visible;background:none;padding:0;left:calc(100% + 14px);top:-6px;white-space:nowrap;font-size:10px;letter-spacing:.06em;color:#9ba9ae}
+}
+@media(max-width:374px){.hero-copy{padding:0 16px}.hero-copy h1{font-size:25px}.hero-switcher{left:16px;right:auto}}

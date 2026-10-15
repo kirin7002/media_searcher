@@ -1,4 +1,5 @@
 import { CATALOG_DEFAULTS, parseCatalog, catalogHash, pageFromLocation, sortCatalogItems } from './catalog-state.js';
+import { bindHeroSwipe } from './hero-swipe.js';
 const $ = id => document.getElementById(id);
 const typeLabels = { tv: '剧集', movie: '电影', anime: '动漫剧集', anime_movie: '动漫电影', variety: '综艺' };
 
@@ -48,8 +49,9 @@ export function initDiscovery({ icon, escape, onSearch }) {
     if (!item) return;
     state.heroIndex = index;
     const id = remember(item);
-    $('home-hero').innerHTML = `<div class="hero-art">${image(item, true, true)}</div><div class="hero-shade"></div><div class="hero-copy"><div class="eyebrow">本期精选 · ${escape(item.categoryName)}</div><h1>${escape(item.title)}</h1><p class="hero-original">${escape(item.originalTitle)}</p><div class="hero-meta">${escape(item.releaseDate)} <span>·</span> ${rating(item)}</div><p class="hero-overview">${escape(item.overview || '发现一个新的故事，从这里开始。')}</p><div class="hero-actions"><button type="button" class="primary-button" data-media-search="${id}">${icon('search')}搜索网盘</button><button type="button" class="secondary-button" data-media-details="${id}">了解剧情</button></div><p class="hero-hint">点击影视海报，即可搜索相关网盘资源</p></div><div class="hero-switcher" role="group" aria-label="精选影视切换">${items.map((entry, i) => `<button type="button" data-hero="${i}" aria-label="精选 ${i + 1}：${escape(entry.title)}" aria-pressed="${index === i}">${entry.posterUrl ? `<img src="${escape(entry.posterUrl)}" alt="" width="80" height="52">` : escape(String(i + 1).padStart(2, '0'))}<span>${escape(entry.title)}</span></button>`).join('')}</div>`;
+    $('home-hero').innerHTML = `<div class="hero-art" draggable="false">${image(item, true, true)}</div><div class="hero-shade"></div><div class="hero-copy"><div class="eyebrow">本期精选 · ${escape(item.categoryName)}</div><h1>${escape(item.title)}</h1><p class="hero-original">${escape(item.originalTitle)}</p><div class="hero-meta">${escape(item.releaseDate)} <span>·</span> ${rating(item)}</div><p class="hero-overview">${escape(item.overview || '发现一个新的故事，从这里开始。')}</p><div class="hero-actions"><button type="button" class="primary-button" data-media-search="${id}">${icon('search')}搜索网盘</button><button type="button" class="secondary-button" data-media-details="${id}">了解剧情</button></div><p class="hero-hint">点击影视海报，即可搜索相关网盘资源</p></div><div class="hero-switcher" role="group" aria-label="精选影视切换">${items.map((entry, i) => `<button type="button" data-hero="${i}" aria-label="精选 ${i + 1}：${escape(entry.title)}" aria-pressed="${index === i}">${entry.posterUrl ? `<img src="${escape(entry.posterUrl)}" alt="" width="80" height="52">` : escape(String(i + 1).padStart(2, '0'))}<span>${escape(entry.title)}</span></button>`).join('')}${items.length > 1 ? '<span class="hero-swipe-hint">左右滑动切换</span>' : ''}</div>`;
   }
+  bindHeroSwipe($('home-hero'), { getIndex: () => state.heroIndex, getCount: () => state.home?.featured?.length || 0, onChange: showHero });
   $('home-hero').addEventListener('click', event => { const button = event.target.closest('[data-hero]'); if (button) showHero(Number(button.dataset.hero)); });
   function homeHubs() {
     $('home-platforms').innerHTML = (state.config?.platforms || []).map(p => `<button type="button" class="provider-hub provider-${escape(p.id)}" data-hub="${escape(p.id)}">${escape(p.name)}<span>探索片库 ↗</span></button>`).join('');

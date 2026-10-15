@@ -8,6 +8,7 @@ import { createDiscoverService } from './discover.js';
 const assets = {
   '/': ['index.html', 'text/html; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
+  '/hero-swipe.js': ['hero-swipe.js', 'text/javascript; charset=utf-8'],
   '/discover.js': ['discover.js', 'text/javascript; charset=utf-8'],
   '/catalog-state.js': ['catalog-state.js', 'text/javascript; charset=utf-8'],
   '/tmdb-logo.svg': ['tmdb-logo.svg', 'image/svg+xml'],
