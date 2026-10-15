@@ -46,3 +46,6 @@
 .hero-switcher .hero-swipe-hint{display:block;position:absolute;right:auto;bottom:auto;overflow:visible;background:none;padding:0;left:calc(100% + 14px);top:-6px;white-space:nowrap;font-size:10px;letter-spacing:.06em;color:#9ba9ae}
 }
 @media(max-width:374px){.hero-copy{padding:0 16px}.hero-copy h1{font-size:25px}.hero-switcher{left:16px;right:auto}}
+
+/* Keep catalog controls close to the compact page label. */
+#discover-view .catalog-types{margin-top:20px}
