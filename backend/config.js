@@ -13,7 +13,7 @@ function baseUrl(value, fallback = '') {
 }
 
 export function loadConfig(env = process.env) {
-  const channels = [...new Set((env.TELEGRAM_CHANNELS ?? 'Aliyun_4K_Movies,Quark_Movies').split(',').map(s => s.trim()).filter(Boolean))];
+  const channels = [...new Set((env.TELEGRAM_CHANNELS ?? 'Aliyun_4K_Movies,Quark_Movies,shareAliyun').split(',').map(s => s.trim()).filter(Boolean))];
   if (channels.length > 5 || channels.some(s => !/^[A-Za-z0-9_]{5,64}$/.test(s))) throw new Error('TELEGRAM_CHANNELS 最多配置 5 个合法的公开频道用户名');
   return {
     host: env.HOST || '127.0.0.1',
@@ -21,6 +21,10 @@ export function loadConfig(env = process.env) {
     timeoutMs: integer(env, 'SOURCE_TIMEOUT_MS', 12000, 100, 120000),
     haisouTimeoutMs: integer(env, 'HAISOU_TIMEOUT_MS', 65000, 1000, 120000),
     qilingTimeoutMs: integer(env, 'QILING_TIMEOUT_MS', 20000, 1000, 120000),
+    sosopxTimeoutMs: integer(env, 'SOSOPX_TIMEOUT_MS', 25000, 1000, 120000),
+    sosopxBaseUrl: baseUrl(env.SOSOPX_BASE_URL, 'https://sosopx.com'),
+    xiaojiwoTimeoutMs: integer(env, 'XIAOJIWO_TIMEOUT_MS', 30000, 1000, 120000),
+    xiaojiwoBaseUrl: baseUrl(env.XIAOJIWO_BASE_URL, 'https://xiaojiwo.sylu.net'),
     cacheTtlMs: integer(env, 'CACHE_TTL_SECONDS', 120, 0, 3600) * 1000,
     rateLimit: integer(env, 'RATE_LIMIT_PER_MINUTE', 60, 1, 10000),
     trustProxy: env.TRUST_PROXY === 'true',

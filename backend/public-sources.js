@@ -123,7 +123,7 @@ export function createPublicProviders(config, helpers, fetchImpl) {
     }
   };
 
-  const names = { Aliyun_4K_Movies: '阿里4K影视频道', Quark_Movies: '夸克影视频道' };
+  const names = { shareAliyun: '阿里云盘发布频道', Aliyun_4K_Movies: '阿里4K影视频道', Quark_Movies: '夸克影视频道' };
   const telegram = (config.telegramChannels || []).map(channel => {
     let feed = null; let pending = null;
     const source = {

@@ -1,4 +1,6 @@
 import { safeShareUrl } from '../frontend/shared.js';
+import { createXiaojiwo } from './xiaojiwo.js';
+import { createLightsearch } from './stream-source.js';
 import { createPublicProviders } from './public-sources.js';
 
 const text = (value, limit = 500) => typeof value === 'string' ? value.replace(/<[^>]*>/g, '').trim().slice(0, limit) : '';
@@ -158,7 +160,7 @@ export function createProviders(config, fetchImpl = fetch) {
       return { items: rows.filter(row => row && typeof row === 'object').map(row => normalizeItem({ title: row.name, url: row.url }, qiling)).filter(Boolean), total: data.data.length, totalType: 'records', hasMore: false };
     }
   };
-  return [pansousuo, pansou, haisou, qiling, ...createPublicProviders(config, { requestText, requestJson, normalizeItem, UpstreamError }, fetchImpl)].map(provider => {
+  return [pansousuo, pansou, haisou, qiling, createXiaojiwo(config, { normalizeItem, requestJson, UpstreamError }, fetchImpl), createLightsearch(config, { normalizeItem, UpstreamError }, fetchImpl), ...createPublicProviders(config, { requestText, requestJson, normalizeItem, UpstreamError }, fetchImpl)].map(provider => {
     if (config.disabledSources?.includes(provider.id)) return { ...provider, enabled: false, supportsCheck: false, disabledReason: '已由服务器配置停用' };
     return provider;
   });

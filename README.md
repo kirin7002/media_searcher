@@ -4,7 +4,7 @@
 
 ## 功能
 
-- 真实搜索：默认接入盘搜索、PanSearch、人人电影网，以及两个公开影视频道；可选接入海搜、起零数据和自部署 PanSou。
+- 真实搜索：默认接入盘搜索、PanSearch、人人电影网、轻搜搜、小鸡窝，以及三个公开频道；可选接入海搜、起零数据和自部署 PanSou。
 - 网盘筛选、最新收录 / 来源热度排序、分页加载与可分享的查询 URL。
 - 按网盘分享 ID 去重，合并多个来源并保留各来源的链接与提取码。
 - 打开原始分享链接、复制分享信息、收藏与 JSON 导出。
@@ -46,7 +46,11 @@ npm start
 | `PANSOUSUO_BASE_URL` | `https://www.pansousuo.com` | 盘搜索服务地址 |
 | `PANSEARCH_BASE_URL` | `https://www.pansearch.me` | PanSearch 公开搜索页地址 |
 | `RRDYNB_BASE_URL` | `https://www.rrdynb.com` | 人人电影网公开影视搜索地址 |
-| `TELEGRAM_CHANNELS` | `Aliyun_4K_Movies,Quark_Movies` | 最多 5 个公开频道；设为空关闭频道来源 |
+| `SOSOPX_BASE_URL` | `https://sosopx.com` | 轻搜搜地址 |
+| `SOSOPX_TIMEOUT_MS` | `25000` | 轻搜搜会话和搜索流的整体超时 |
+| `XIAOJIWO_BASE_URL` | `https://xiaojiwo.sylu.net` | 小鸡窝地址 |
+| `XIAOJIWO_TIMEOUT_MS` | `30000` | 小鸡窝搜索及最多 6 条分享解析的整体超时 |
+| `TELEGRAM_CHANNELS` | `Aliyun_4K_Movies,Quark_Movies,shareAliyun` | 最多 5 个公开频道；设为空关闭频道来源 |
 | `DISABLED_SOURCES` | 空 | 逗号分隔要停用的来源 ID，ID 可从 `/api/sources` 获取 |
 | `PANSOU_BASE_URL` | 空 | 自部署 PanSou 根地址；配置后启用 |
 | `PANSOU_TOKEN` | 空 | PanSou 认证 Token（如开启认证） |
@@ -61,6 +65,8 @@ npm start
 | `TMDB_READ_ACCESS_TOKEN` | 空 | TMDb API Read Access Token，启用近期上映页面的真实数据 |
 | `TMDB_API_KEY` | 空 | 可选 v3 API key，与 Read Access Token 任选一种 |
 | `DISCOVER_TIMEZONE` | `Asia/Shanghai` | 各时间范围及“今天”的日期边界 |
+
+轻搜搜通过公开匿名会话读取 SSE 搜索结果，Cookie 只在后端当前查询中使用。小鸡窝默认搜索夸克，网盘筛选可切换百度、UC、迅雷；读取公开 SSE，按网页原有操作解析最多 6 条分享地址；两者保留已收到的部分结果，显示线路失败或超时，不把上游的有效性声明当作本项目的检测结论。公开频道只匹配最近展示的帖子，不代表完整历史搜索。
 
 海搜按站方额度计费，仓库不包含 key。收藏保存在当前浏览器，不同步到服务器；服务端缓存为内存缓存，重启后清空。
 
@@ -114,7 +120,7 @@ curl http://127.0.0.1:3210/api/health
 
 影视查询类型 `type` 支持 `tv/movie/anime/anime_movie/variety`；时间 `period` 支持 `month/30d/90d/180d/365d/3y/all/custom`。自定义示例：`/api/discover?type=anime&period=custom&from=2024-01-01&to=2025-12-31`。省略 `region` 和 `minVotes` 时，分别按 `all` 与 `0` 处理。
 
-`pan` 取值见 `frontend/shared.js`；`sources` 从 `/api/sources` 的已启用来源中选择。`sort` 支持 `latest`、`hot`，排序以各来源为准；公开页面与频道保持来源原始顺序。PanSou、起零数据和最近公开频道无分页能力，第一页聚合后不重复查询后续页。
+`pan` 取值见 `frontend/shared.js`；`sources` 从 `/api/sources` 的已启用来源中选择。`sort` 支持 `latest`、`hot`，排序以各来源为准；公开页面与频道保持来源原始顺序。PanSou、起零数据、轻搜搜、小鸡窝和最近公开频道无分页能力，第一页聚合后不重复查询后续页。
 
 响应包括 `items`、`sources`、`hasMore`、`partial` 和耗时。结果数为当前返回页去重后的链接数量，`sourceTotal` 是来源自报命中数量之和，不是全网去重总数。
 

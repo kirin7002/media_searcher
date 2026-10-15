@@ -32,8 +32,6 @@ let toastTimer;
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 2500); }
 
 const sites = [
-  { name: '轻搜搜', website: 'https://sosopx.com/', tag: '网盘搜索', description: '可通过网页搜索百度、夸克等网盘分享索引。' },
-  { name: '小鸡窝', website: 'https://xiaojiwo.sylu.net/', tag: '分享索引', description: '通过分类、搜索和详情页寻找公开分享信息。' },
   { name: '易搜', website: 'https://yiso.eu.org/', tag: '待核实', description: '地址发布页；本轮访问受限，当前可用性尚未确认。' },
   { name: '混合盘', website: 'https://hunhepan.com/', tag: '待核实', description: '聚合搜索入口；本轮访问异常，当前可用性尚未确认。' }
 ];
