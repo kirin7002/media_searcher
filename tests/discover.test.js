@@ -47,11 +47,28 @@ test('defaults truly browse globally with unrestricted vote count, without a hid
   assert.equal(requests[0].searchParams.has('watch_region'), false);
 });
 
-test('global region never silently ignores an explicitly selected streaming platform', async () => {
-  let calls = 0;
-  const service = createDiscoverService(cfg(), async () => { calls++; throw new Error(); }, clock);
-  await assert.rejects(service.discover(new URLSearchParams({ platform: 'netflix' })), error => error.status === 400 && error.message.includes('具体片库地区'));
-  assert.equal(calls, 0);
+test('platform browsing without a region queries supported regional catalogs and deduplicates titles', async () => {
+  const requests = [];
+  const service = createDiscoverService(cfg(), async value => {
+    const url = new URL(value); requests.push(url);
+    const region = url.searchParams.get('watch_region');
+    if (url.pathname.includes('/watch/providers/')) return Response.json({ results: [{ provider_id: region === 'JP' ? 175 : 8, provider_name: 'Netflix' }] });
+    assert.equal(url.searchParams.get('with_watch_providers'), region === 'JP' ? '175' : '8');
+    assert.equal(url.searchParams.get('with_watch_monetization_types'), 'flatrate');
+    const results = [row(), ...(region === 'JP' ? [row({ id: 456, name: '日本独有作品', vote_average: 9 })] : [])];
+    return Response.json({ results, total_results: results.length, total_pages: 2 });
+  }, clock);
+  const result = await service.discover(new URLSearchParams({ platform: 'netflix' }));
+  assert.equal(result.region, 'all');
+  assert.equal(result.regionMode, 'combined');
+  assert.deepEqual(result.items.map(item => item.id), ['tv:456', 'tv:123']);
+  assert.equal(result.items.find(item => item.id === 'tv:123').catalogRegions.length, 8);
+  assert.deepEqual(result.items.find(item => item.id === 'tv:456').catalogRegions, ['JP']);
+  assert.deepEqual(new Set(requests.filter(url => url.pathname.includes('/discover/')).map(url => url.searchParams.get('watch_region'))), new Set(['US', 'GB', 'JP', 'KR', 'HK', 'TW', 'CA', 'AU']));
+  assert.equal(result.total, 9);
+  assert.equal(result.totalType, 'regional_sum');
+  assert.equal(result.partial, false);
+  assert.equal(result.hasMore, true);
 });
 
 test('anime series, anime films and variety use the correct API families and genre filters', async () => {
@@ -252,4 +269,46 @@ test('rating filters enforce the actual returned score and sort unscored entries
   assert.deepEqual(result.items.map(item => item.id), ['tv:4', 'tv:1']);
   const unrestricted = await service.discover(new URLSearchParams({ sort: 'rating_asc' }));
   assert.equal(unrestricted.items.at(-1).rating, null);
+});
+
+test('cross-region platform batches preserve filters and pagination with regional failure isolation', async () => {
+  const upstream = mockFetch();
+  const requests = [];
+  const service = createDiscoverService(cfg(), async (value, options) => {
+    const url = new URL(value); requests.push(url);
+    if (url.searchParams.get('watch_region') === 'US') return new Response('unavailable', { status: 503 });
+    if (url.pathname.includes('/discover/')) {
+      assert.equal(url.pathname, '/3/discover/movie');
+      assert.equal(url.searchParams.get('page'), '2');
+      assert.equal(url.searchParams.get('with_genres'), '16');
+      assert.equal(url.searchParams.get('vote_average.gte'), '7');
+      assert.equal(url.searchParams.get('vote_count.gte'), '100');
+      assert.equal(url.searchParams.get('primary_release_date.gte'), '2026-01-01');
+      return Response.json({ results: [row({ title: '动漫电影', release_date: '2026-10-01' })], total_results: 21, total_pages: 2 });
+    }
+    return upstream(value, options);
+  }, clock);
+  const result = await service.discover(new URLSearchParams({ platform: 'netflix', type: 'anime_movie', period: 'custom', from: '2026-01-01', to: '2026-10-15', page: '2', minRating: '7', minVotes: '100' }));
+  assert.deepEqual(result.failedRegions, ['US']);
+  assert.equal(result.queriedRegions.length, 7);
+  assert.equal(result.items.length, 1);
+  assert.equal(result.partial, true);
+  assert.equal(result.page, 2);
+  assert.equal(result.hasMore, false);
+  assert.match(result.reason, /美国/);
+  assert.ok(requests.every(url => url.searchParams.has('watch_region')));
+});
+
+test('cross-region platform errors never broaden to all platforms or bypass input validation', async () => {
+  const service = createDiscoverService(cfg(), mockFetch(), clock);
+  const unavailable = await service.discover(new URLSearchParams({ platform: 'peacock' }));
+  assert.equal(unavailable.items.length, 0);
+  assert.equal(unavailable.hasMore, false);
+  assert.match(unavailable.reason, /暂无可用/);
+  let calls = 0;
+  const failed = createDiscoverService(cfg(), async () => { calls++; return new Response('bad', { status: 503 }); }, clock);
+  await assert.rejects(failed.discover(new URLSearchParams({ platform: 'netflix', page: '51' })), error => error.status === 400);
+  assert.equal(calls, 0);
+  await assert.rejects(failed.discover(new URLSearchParams({ platform: 'netflix' })));
+  assert.equal(calls, 8);
 });

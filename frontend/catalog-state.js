@@ -23,3 +23,8 @@ export function pageFromLocation(hash, search = '') {
   const name = hash.slice(1).split('?')[0];
   return ['home', 'search', 'discover', 'favorites', 'sources'].includes(name) ? name : new URLSearchParams(search).has('q') ? 'search' : 'home';
 }
+
+export function sortCatalogItems(items, sort) {
+  return items.sort((a, b) => sort === 'newest' ? (b.releaseDate || '').localeCompare(a.releaseDate || '')
+    : a.rating == null ? (b.rating == null ? 0 : 1) : b.rating == null ? -1 : sort === 'rating_asc' ? a.rating - b.rating : b.rating - a.rating);
+}

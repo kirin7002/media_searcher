@@ -1,9 +1,9 @@
-import { CATALOG_DEFAULTS, parseCatalog, catalogHash, pageFromLocation } from './catalog-state.js';
+import { CATALOG_DEFAULTS, parseCatalog, catalogHash, pageFromLocation, sortCatalogItems } from './catalog-state.js';
 const $ = id => document.getElementById(id);
 const typeLabels = { tv: '剧集', movie: '电影', anime: '动漫剧集', anime_movie: '动漫电影', variety: '综艺' };
 
 export function initDiscovery({ icon, escape, onSearch }) {
-  const state = { config: null, catalog: { ...CATALOG_DEFAULTS }, items: [], page: 1, hasMore: false, total: 0, key: '', scroll: 0, controller: null, homeController: null, homeLoaded: false, home: null, heroIndex: 0, view: '', cache: new Map(), pendingPlatform: null };
+  const state = { config: null, catalog: { ...CATALOG_DEFAULTS }, items: [], page: 1, hasMore: false, total: 0, key: '', scroll: 0, controller: null, homeController: null, homeLoaded: false, home: null, heroIndex: 0, view: '', cache: new Map(), regionMode: null, queriedRegions: [], notice: '' };
   const media = new Map();
   const empty = (title, description) => `<div class="empty-state"><span class="empty-icon">${icon('film')}</span><h3>${escape(title)}</h3><p>${escape(description)}</p></div>`;
   const remember = item => { media.set(item.id, item); return escape(item.id); };
@@ -57,10 +57,8 @@ export function initDiscovery({ icon, escape, onSearch }) {
   $('home-platforms').addEventListener('click', event => {
     const button = event.target.closest('[data-hub]');
     if (!button) return;
-    if (!$('home-region').value) { $('home-platform-hint').textContent = `请选择片库地区，再探索 ${button.textContent.replace('探索片库 ↗', '')} 的影视。`; $('home-region').focus(); return; }
-    location.hash = catalogHash({ ...CATALOG_DEFAULTS, region: $('home-region').value, platform: button.dataset.hub, period: 'all' });
+    location.hash = catalogHash({ ...CATALOG_DEFAULTS, platform: button.dataset.hub, period: 'all' });
   });
-  $('home-region').addEventListener('change', () => { $('home-platform-hint').textContent = $('home-region').value ? '平台入口展示该地区的片库，具体可看信息以平台为准。' : '平台片库因地区而异；选择平台时请先指定地区。'; });
   async function loadHome() {
     if (state.homeController) return;
     const controller = new AbortController(); state.homeController = controller;
@@ -95,9 +93,12 @@ export function initDiscovery({ icon, escape, onSearch }) {
     $('discover-custom-dates').hidden = c.period !== 'custom';
     $('catalog-types').innerHTML = Object.entries(typeLabels).map(([type, label]) => `<button type="button" class="type-tab ${c.type === type ? 'selected' : ''}" data-type="${type}" aria-pressed="${c.type === type}">${label}</button>`).join('');
     const global = c.region === 'all';
+    $('discover-region').options[0].textContent = c.platform === 'all' ? '不限' : '跨地区（合并片库）';
     $('streaming-platforms').innerHTML = [{ id: 'all', name: '全部平台' }, ...(state.config?.platforms || [])].map(p => `<button type="button" class="streaming-chip ${c.platform === p.id ? 'selected' : ''}" data-streamer="${escape(p.id)}" aria-pressed="${c.platform === p.id}">${escape(p.name)}</button>`).join('');
     $('discover-region-hint').hidden = !global;
-    const parts = [typeLabels[c.type], state.config?.regions[c.region] === '不限' ? '不限地区' : state.config?.regions[c.region], c.platform === 'all' ? '全部平台' : state.config?.platforms.find(p => p.id === c.platform)?.name, state.config?.periods[c.period]];
+    const regionNames = Object.entries(state.config?.regions || {}).filter(([code]) => code !== 'all').map(([, name]) => name);
+    $('discover-region-hint').textContent = c.platform === 'all' ? '地区不限时展示全球作品，选择平台可直接浏览跨地区片库。' : `合并${regionNames.join('、')}的片库并去重；也可选择具体地区缩小范围。`;
+    const parts = [typeLabels[c.type], global ? (c.platform === 'all' ? '不限地区' : '跨地区') : state.config?.regions[c.region], c.platform === 'all' ? '全部平台' : state.config?.platforms.find(p => p.id === c.platform)?.name, state.config?.periods[c.period]];
     if (c.period === 'custom') parts.push(`${c.from || '选择开始日期'} — ${c.to || '选择结束日期'}`);
     if (Number(c.minRating)) parts.push(`${c.minRating} 分以上`);
     if (Number(c.minVotes)) parts.push(`至少 ${c.minVotes} 人评分`);
@@ -122,7 +123,9 @@ export function initDiscovery({ icon, escape, onSearch }) {
     $('discover-results').innerHTML = state.items.length ? state.items.map(item => poster(item, true)).join('') : empty('这个条件下还没有作品', '试试更长的时间范围、其他类型或地区，或降低最低评分和评分人数。');
     $('discover-more').hidden = !state.hasMore;
     $('discover-title').textContent = `${state.config?.periods[state.catalog.period] || ''} · ${typeLabels[state.catalog.type]}`;
-    $('discover-summary').textContent = `来源命中 ${state.total} 部 · 已显示 ${state.items.length} 部 · 评分来自 TMDb`;
+    $('discover-summary').textContent = state.regionMode === 'combined'
+      ? `合并 ${state.queriedRegions.length} 个地区片库 · 地区命中合计 ${state.total} 条（含重复） · 已显示 ${state.items.length} 部去重作品 · TMDb 评分`
+      : `来源命中 ${state.total} 部 · 已显示 ${state.items.length} 部 · 评分来自 TMDb`;
   }
   async function loadCatalog({ append = false } = {}) {
     state.controller?.abort();
@@ -132,11 +135,6 @@ export function initDiscovery({ icon, escape, onSearch }) {
     $('discover-notice').textContent = '';
     $('discover-results').setAttribute('aria-busy', 'false'); $('discover-more').disabled = false; $('discover-refresh').disabled = false;
     if (!append) { state.items = []; state.hasMore = false; $('discover-more').hidden = true; }
-    if (c.region === 'all' && c.platform !== 'all') {
-      $('discover-notice').innerHTML = '<div class="partial-note">此链接已选择平台，请先选择具体片库地区，再查询该平台。</div>';
-      $('discover-results').innerHTML = empty('请选择片库地区', '不同地区的平台片库不同，地区不限时无法按平台筛选。');
-      $('discover-summary').textContent = '等待选择片库地区'; $('catalog-filter-panel').open = true; return;
-    }
     if (c.period === 'custom' && (!c.from || !c.to || !$('discover-from').checkValidity() || !$('discover-to').checkValidity() || c.from > c.to)) {
       $('discover-notice').innerHTML = '<div class="partial-note">请填写有效的开始和结束日期，再点击“应用日期”。</div>';
       $('discover-results').innerHTML = empty('选择日期范围', '开始日期不能晚于结束日期，结束日期不能晚于今天。');
@@ -151,12 +149,13 @@ export function initDiscovery({ icon, escape, onSearch }) {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '影视片库暂时不可用');
       if (state.controller !== controller) return;
-      state.items = [...new Map((append ? [...state.items, ...data.items] : data.items).map(item => [item.id, item])).values()];
+      state.items = sortCatalogItems([...new Map((append ? [...state.items, ...data.items] : data.items).map(item => [item.id, item])).values()], c.sort);
       state.page = page; state.total = data.total; state.hasMore = data.hasMore; state.key = key;
+      state.regionMode = data.regionMode || null; state.queriedRegions = data.queriedRegions || []; state.notice = data.reason || '';
       renderCatalog();
       if (data.reason) $('discover-notice').innerHTML = `<div class="partial-note">${escape(data.reason)}</div>`;
       if (state.cache.size >= 12 && !state.cache.has(key)) state.cache.delete(state.cache.keys().next().value);
-      state.cache.set(key, { items: [...state.items], page, total: state.total, hasMore: state.hasMore, scroll: append ? window.scrollY : 0 });
+      state.cache.set(key, { items: [...state.items], page, total: state.total, hasMore: state.hasMore, scroll: append ? window.scrollY : 0, regionMode: state.regionMode, queriedRegions: [...state.queriedRegions], notice: state.notice });
     } catch (error) {
       if (error.name === 'AbortError' || state.controller !== controller) return;
       $('discover-notice').innerHTML = `<div class="error-banner">${escape(error.message)}</div>`;
@@ -169,26 +168,17 @@ export function initDiscovery({ icon, escape, onSearch }) {
   $('catalog-types').addEventListener('click', event => { const button = event.target.closest('[data-type]'); if (button) commit({ ...state.catalog, type: button.dataset.type }); });
   $('streaming-platforms').addEventListener('click', event => {
     const button = event.target.closest('[data-streamer]'); if (!button) return;
-    if (state.catalog.region === 'all' && button.dataset.streamer !== 'all') {
-      state.pendingPlatform = button.dataset.streamer;
-      $('discover-notice').innerHTML = '<div class="partial-note">请先选择具体片库地区，将继续筛选你选中的平台。</div>';
-      $('discover-region').focus(); return;
-    }
     commit({ ...state.catalog, platform: button.dataset.streamer });
   });
   $('discover-filters').addEventListener('submit', event => event.preventDefault());
   $('discover-filters').addEventListener('change', event => {
     const c = collect();
-    if (event.target.id === 'discover-region') {
-      if (c.region === 'all') { c.platform = 'all'; state.pendingPlatform = null; }
-      else if (state.pendingPlatform) { c.platform = state.pendingPlatform; state.pendingPlatform = null; }
-    }
     $('discover-custom-dates').hidden = c.period !== 'custom';
     if (['discover-from', 'discover-to'].includes(event.target.id)) return;
     commit(c);
   });
   $('discover-apply-dates').addEventListener('click', () => commit(collect()));
-  $('catalog-reset').addEventListener('click', () => { state.pendingPlatform = null; commit({ ...CATALOG_DEFAULTS }); });
+  $('catalog-reset').addEventListener('click', () => commit({ ...CATALOG_DEFAULTS }));
   $('discover-more').addEventListener('click', () => loadCatalog({ append: true }));
   $('discover-refresh').addEventListener('click', async () => { await readConfig(); loadCatalog(); });
 
@@ -201,14 +191,16 @@ export function initDiscovery({ icon, escape, onSearch }) {
     if (view !== 'discover') return;
     const c = parseCatalog(location.hash); const key = catalogHash(c);
     if (!entering && key === catalogHash(state.catalog)) return;
-    state.catalog = c; state.pendingPlatform = null; syncControls();
+    state.catalog = c; syncControls();
     const saved = state.cache.get(key);
     $('discover-notice').textContent = '';
     if (saved) {
       state.controller?.abort();
-      Object.assign(state, { items: [...saved.items], page: saved.page, total: saved.total, hasMore: saved.hasMore, key });
+      Object.assign(state, { items: [...saved.items], page: saved.page, total: saved.total, hasMore: saved.hasMore, key, regionMode: saved.regionMode, queriedRegions: saved.queriedRegions, notice: saved.notice });
       $('discover-results').setAttribute('aria-busy', 'false'); $('discover-refresh').disabled = false; $('discover-more').disabled = false;
-      renderCatalog(); requestAnimationFrame(() => window.scrollTo({ top: saved.scroll }));
+      renderCatalog();
+      if (state.notice) $('discover-notice').innerHTML = `<div class="partial-note">${escape(state.notice)}</div>`;
+      requestAnimationFrame(() => window.scrollTo({ top: saved.scroll }));
     } else { state.key = ''; loadCatalog(); if (entering) window.scrollTo({ top: 0 }); }
   }
   async function readConfig() {

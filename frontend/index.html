@@ -30,8 +30,8 @@
         <div id="home-notice" aria-live="polite"></div>
         <div class="shelf-heading"><div><h2>近期热门</h2><span>TMDb 本周趋势</span></div><a href="#discover?period=30d">筛选片库 <span>→</span></a></div>
         <div id="home-trending" class="poster-shelf" aria-live="polite"><div class="empty-state"><p>正在寻找本周值得看的故事…</p></div></div>
-        <div class="shelf-heading"><div><h2>按平台发现</h2><span>选择地区，探索流媒体片库</span></div><label class="home-region">片库地区<select id="home-region" aria-label="平台片库地区"><option value="">选择地区</option><option value="US">美国</option><option value="GB">英国</option><option value="JP">日本</option><option value="KR">韩国</option><option value="HK">香港</option><option value="TW">台湾</option><option value="CA">加拿大</option><option value="AU">澳大利亚</option></select></label></div>
-        <div id="home-platforms" class="provider-hubs"></div><p id="home-platform-hint" class="directory-footnote" aria-live="polite">平台片库因地区而异；选择平台时请先指定地区。</p>
+        <div class="shelf-heading"><div><h2>按平台发现</h2><span>从你喜欢的平台开始，发现更多好故事</span></div><a href="#discover">探索片库 →</a></div>
+        <div id="home-platforms" class="provider-hubs"></div>
         <div class="shelf-heading"><div><h2>近期电影</h2><span>最近 30 天首次上映 · 至少 10 人评分</span></div><a href="#discover?type=movie&period=30d&sort=newest&minVotes=10">查看全部 →</a></div>
         <div id="home-movies" class="landscape-shelf" aria-live="polite"></div>
         <div class="shelf-heading"><div><h2>近期新剧</h2><span>最近 30 天首次首播 · 至少 10 人评分</span></div><a href="#discover?type=tv&period=30d&sort=newest&minVotes=10">查看全部 →</a></div>
@@ -67,7 +67,7 @@
           <div id="discover-custom-dates" class="custom-dates" hidden><label>开始日期<input type="date" id="discover-from"></label><label>结束日期<input type="date" id="discover-to"></label><button type="button" id="discover-apply-dates" class="secondary-button">应用日期</button></div>
         </form>
         <div class="platform-filter-label">流媒体平台</div><div id="streaming-platforms" class="streaming-platforms" role="group" aria-label="流媒体平台"></div>
-        <p class="directory-footnote" id="discover-region-hint">不限地区时展示全球作品；不同地区的平台片库不同，按平台筛选时请先选择具体地区。</p>
+        <p class="directory-footnote" id="discover-region-hint">平台片库默认合并当前支持的多个地区；也可选择具体地区缩小范围。</p>
         </details>
         <div class="catalog-selection"><p id="catalog-selected" aria-live="polite"></p><button id="catalog-reset" type="button" class="text-button">清空筛选</button></div>
         <div id="discover-notice" aria-live="polite"></div>

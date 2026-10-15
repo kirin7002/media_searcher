@@ -44,6 +44,11 @@ function artwork(row, type) {
   };
 }
 
+function sortArtworks(items, sort) {
+  return items.sort((a, b) => sort === 'newest' ? b.releaseDate.localeCompare(a.releaseDate)
+    : a.rating == null ? (b.rating == null ? 0 : 1) : b.rating == null ? -1 : sort === 'rating_asc' ? a.rating - b.rating : b.rating - a.rating);
+}
+
 export function dateWindow(period, now = new Date(), timezone = 'Asia/Shanghai', custom = {}) {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now).map(p => [p.type, p.value]));
   const today = `${parts.year}-${parts.month}-${parts.day}`;
@@ -120,13 +125,48 @@ export function createDiscoverService(config, fetchImpl = fetch, now = () => new
       const pageText = params.get('page') || '1';
       if (platform !== 'all' && !STREAMERS.some(p => p.id === platform)) throw new InputError('不支持的流媒体平台');
       if (!Object.hasOwn(PERIODS, period)) throw new InputError('不支持的时间范围');
-      if (region === 'all' && platform !== 'all') throw new InputError('按流媒体平台筛选时，请先选择具体片库地区');
       if (!['rating', 'rating_asc', 'newest'].includes(sort)) throw new InputError('不支持的排序方式');
       if (!['0', '10', '100'].includes(minVotes)) throw new InputError('不支持的最低评分人数');
       if (!/^(?:[0-9](?:\.[0-9])?|10(?:\.0)?)$/.test(minRating)) throw new InputError('最低评分必须在 0–10 之间');
       if (!/^\d+$/.test(pageText) || Number(pageText) < 1 || Number(pageText) > 50) throw new InputError('页码必须在 1–50 之间');
       const page = Number(pageText);
       const range = dateWindow(period, now(), config.discoverTimezone, { from: params.get('from'), to: params.get('to') });
+      if (region === 'all' && platform !== 'all') {
+        const regions = Object.keys(REGIONS).filter(code => code !== 'all');
+        const results = await Promise.allSettled(regions.map(code => {
+          const regional = new URLSearchParams(params);
+          regional.set('region', code);
+          return service.discover(regional);
+        }));
+        if (results.every(result => result.status === 'rejected')) throw results[0].reason;
+        const byId = new Map();
+        const platforms = new Map(STREAMERS.map(({ match, ...entry }) => [entry.id, { ...entry, available: false, providerIds: [] }]));
+        let total = 0; let hasMore = false;
+        results.forEach((result, index) => {
+          if (result.status !== 'fulfilled') return;
+          total += result.value.total; hasMore ||= result.value.hasMore;
+          for (const item of result.value.items) {
+            const previous = byId.get(item.id);
+            if (previous) previous.catalogRegions.push(regions[index]);
+            else byId.set(item.id, { ...item, catalogRegions: [regions[index]] });
+          }
+          for (const entry of result.value.platforms) {
+            const target = platforms.get(entry.id);
+            if (!target) continue;
+            target.available ||= entry.available;
+            target.providerIds = [...new Set([...target.providerIds, ...entry.providerIds])];
+          }
+        });
+        const failedRegions = regions.filter((code, index) => results[index].status === 'rejected');
+        const queriedRegions = regions.filter(code => !failedRegions.includes(code));
+        return {
+          items: sortArtworks([...byId.values()], sort), total, totalType: 'regional_sum', page, hasMore,
+          range, region, type, platform, platforms: [...platforms.values()], ratingSource: 'TMDb', regionMode: 'combined',
+          queriedRegions, failedRegions, partial: failedRegions.length > 0,
+          reason: failedRegions.length ? `${failedRegions.map(code => REGIONS[code]).join('、')}片库暂时无法加载，已保留其他地区的结果。`
+            : !platforms.get(platform).available ? '所选平台在当前支持的地区中暂无可用片库数据' : null
+        };
+      }
       const available = await providers(params);
       const selected = available.filter(p => (platform === 'all' || platform === p.id) && p.available);
       const providerIds = [...new Set(selected.flatMap(p => p.providerIds))];
@@ -146,8 +186,7 @@ export function createDiscoverService(config, fetchImpl = fetch, now = () => new
       const items = data.results.filter(row => row && Number.isSafeInteger(row.id) && row.id > 0 && row.adult !== true)
         .map(row => artwork(row, type)).filter(row => row.title && row.releaseDate && (!range.from || row.releaseDate >= range.from) && row.releaseDate <= range.to
           && (Number(minRating) === 0 || (row.rating != null && row.rating >= Number(minRating))));
-      items.sort((a, b) => sort === 'newest' ? b.releaseDate.localeCompare(a.releaseDate)
-        : a.rating == null ? (b.rating == null ? 0 : 1) : b.rating == null ? -1 : sort === 'rating_asc' ? a.rating - b.rating : b.rating - a.rating);
+      sortArtworks(items, sort);
       return { items, total: Number(data.total_results), page, hasMore: page < Math.min(Number(data.total_pages), 50), range, region, type, platform, platforms: available, ratingSource: 'TMDb' };
     },
     async home() {
