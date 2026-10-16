@@ -4,7 +4,7 @@ const $ = id => document.getElementById(id);
 const typeLabels = { tv: '剧集', movie: '电影', anime: '动漫剧集', anime_movie: '动漫电影', variety: '综艺' };
 
 export function initDiscovery({ icon, escape, onSearch }) {
-  const state = { config: null, catalog: { ...CATALOG_DEFAULTS }, items: [], page: 1, hasMore: false, total: 0, key: '', scroll: 0, controller: null, homeController: null, homeLoaded: false, home: null, heroIndex: 0, view: '', cache: new Map(), regionMode: null, queriedRegions: [], notice: '' };
+  const state = { config: null, catalog: { ...CATALOG_DEFAULTS }, items: [], page: 1, next: null, hasMore: false, total: 0, key: '', scroll: 0, controller: null, homeController: null, homeLoaded: false, home: null, heroIndex: 0, view: '', cache: new Map(), regionMode: null, queriedRegions: [], notice: '' };
   const media = new Map();
   const empty = (title, description) => `<div class="empty-state"><span class="empty-icon">${icon('film')}</span><h3>${escape(title)}</h3><p>${escape(description)}</p></div>`;
   const remember = item => { media.set(item.id, item); return escape(item.id); };
@@ -103,7 +103,7 @@ export function initDiscovery({ icon, escape, onSearch }) {
     const parts = [typeLabels[c.type], global ? (c.platform === 'all' ? '不限地区' : '跨地区') : state.config?.regions[c.region], c.platform === 'all' ? '全部平台' : state.config?.platforms.find(p => p.id === c.platform)?.name, state.config?.periods[c.period]];
     if (c.period === 'custom') parts.push(`${c.from || '选择开始日期'} — ${c.to || '选择结束日期'}`);
     if (Number(c.minRating)) parts.push(`${c.minRating} 分以上`);
-    if (Number(c.minVotes)) parts.push(`至少 ${c.minVotes} 人评分`);
+    if (Number(c.minVotes)) parts.push(c.minVotes === '10' ? '至少 10 人评分优先，不足 10 人排后' : `至少 ${c.minVotes} 人评分`);
     parts.push({ rating: '评分 ↓', rating_asc: '评分 ↑', newest: '最新上映' }[c.sort]);
     $('catalog-selected').textContent = parts.filter(Boolean).join(' · ');
     const count = Object.keys(CATALOG_DEFAULTS).filter(key => c[key] !== CATALOG_DEFAULTS[key]).length;
@@ -132,7 +132,8 @@ export function initDiscovery({ icon, escape, onSearch }) {
   async function loadCatalog({ append = false } = {}) {
     state.controller?.abort();
     const c = { ...state.catalog }; const key = catalogHash(c);
-    const page = append ? state.page + 1 : 1;
+    const page = append ? state.next?.page || state.page + 1 : 1;
+    const voteGroup = append ? state.next?.voteGroup : undefined;
     const controller = new AbortController(); state.controller = controller;
     $('discover-notice').textContent = '';
     $('discover-results').setAttribute('aria-busy', 'false'); $('discover-more').disabled = false; $('discover-refresh').disabled = false;
@@ -147,17 +148,17 @@ export function initDiscovery({ icon, escape, onSearch }) {
     if (!append) $('discover-results').innerHTML = Array.from({ length: 6 }, () => '<div class="skeleton-card movie-skeleton"><div></div><div></div></div>').join('');
     try {
       if (!state.config?.enabled) throw new Error('影视数据服务尚未连接，请在服务端配置 TMDb 访问凭据后重试。');
-      const response = await fetch(`/api/discover?${new URLSearchParams({ ...c, page: String(page) })}`, { signal: controller.signal });
+      const response = await fetch(`/api/discover?${new URLSearchParams({ ...c, page: String(page), ...(voteGroup ? { voteGroup } : {}) })}`, { signal: controller.signal });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '影视片库暂时不可用');
       if (state.controller !== controller) return;
-      state.items = sortCatalogItems([...new Map((append ? [...state.items, ...data.items] : data.items).map(item => [item.id, item])).values()], c.sort);
-      state.page = page; state.total = data.total; state.hasMore = data.hasMore; state.key = key;
+      state.items = sortCatalogItems([...new Map((append ? [...state.items, ...data.items] : data.items).map(item => [item.id, item])).values()], c.sort, c.minVotes);
+      state.page = data.page; state.next = data.next || null; state.total = data.total; state.hasMore = data.hasMore; state.key = key;
       state.regionMode = data.regionMode || null; state.queriedRegions = data.queriedRegions || []; state.notice = data.reason || '';
       renderCatalog();
       if (data.reason) $('discover-notice').innerHTML = `<div class="partial-note">${escape(data.reason)}</div>`;
       if (state.cache.size >= 12 && !state.cache.has(key)) state.cache.delete(state.cache.keys().next().value);
-      state.cache.set(key, { items: [...state.items], page, total: state.total, hasMore: state.hasMore, scroll: append ? window.scrollY : 0, regionMode: state.regionMode, queriedRegions: [...state.queriedRegions], notice: state.notice });
+      state.cache.set(key, { items: [...state.items], page: state.page, next: state.next, total: state.total, hasMore: state.hasMore, scroll: append ? window.scrollY : 0, regionMode: state.regionMode, queriedRegions: [...state.queriedRegions], notice: state.notice });
     } catch (error) {
       if (error.name === 'AbortError' || state.controller !== controller) return;
       $('discover-notice').innerHTML = `<div class="error-banner">${escape(error.message)}</div>`;
@@ -182,7 +183,7 @@ export function initDiscovery({ icon, escape, onSearch }) {
   $('discover-apply-dates').addEventListener('click', () => commit(collect()));
   $('catalog-reset').addEventListener('click', () => commit({ ...CATALOG_DEFAULTS }));
   $('discover-more').addEventListener('click', () => loadCatalog({ append: true }));
-  $('discover-refresh').addEventListener('click', async () => { await readConfig(); loadCatalog(); });
+  $('discover-refresh').addEventListener('click', async () => { $('catalog-filter-panel').open = false; await readConfig(); loadCatalog(); });
 
   function route() {
     if (!state.config) return;
@@ -198,7 +199,7 @@ export function initDiscovery({ icon, escape, onSearch }) {
     $('discover-notice').textContent = '';
     if (saved) {
       state.controller?.abort();
-      Object.assign(state, { items: [...saved.items], page: saved.page, total: saved.total, hasMore: saved.hasMore, key, regionMode: saved.regionMode, queriedRegions: saved.queriedRegions, notice: saved.notice });
+      Object.assign(state, { items: [...saved.items], page: saved.page, next: saved.next, total: saved.total, hasMore: saved.hasMore, key, regionMode: saved.regionMode, queriedRegions: saved.queriedRegions, notice: saved.notice });
       $('discover-results').setAttribute('aria-busy', 'false'); $('discover-refresh').disabled = false; $('discover-more').disabled = false;
       renderCatalog();
       if (state.notice) $('discover-notice').innerHTML = `<div class="partial-note">${escape(state.notice)}</div>`;

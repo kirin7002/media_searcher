@@ -72,7 +72,7 @@ npm start
 
 起零数据支持阿里云盘、夸克、百度和迅雷的资源搜索，配置 `QILING_API_TOKEN` 后重启即可启用。Token 通过 Authorization 请求头发送，不放进 URL。该来源没有文档支持的分页、时间排序或链接检测，不重复请求第二页，也不伪造发布时间。明确的“未找到相关网盘资源”响应作为空结果，其他鉴权、额度、限流和格式错误仍显示失败。接口与额度以[官方文档](https://api.istero.com/service/doc/pan-resource-search)为准。
 
-影视页默认地区不限、评分人数不限。未指定平台时直接查询全球作品；指定 Netflix 等平台但不指定地区时，自动合并当前支持的美国、英国、日本、韩国、香港、台湾、加拿大和澳大利亚片库，并按作品 ID 去重，不暗中套用美国区。片库中仍可选择具体地区缩小范围。
+影视页默认地区不限，优先展示至少 10 人评分的作品，不足 10 人的作品仍可在后一组加载，组内按所选评分或上映时间排序。选择评分人数“不限”可取消优先分组，“至少 100 人”仍为严格过滤。点击“重新加载”会收起筛选面板。未指定平台时直接查询全球作品；指定 Netflix 等平台但不指定地区时，自动合并当前支持的美国、英国、日本、韩国、香港、台湾、加拿大和澳大利亚片库，并按作品 ID 去重，不暗中套用美国区。片库中仍可选择具体地区缩小范围。
 
 跨地区模式中每次“加载更多”查询各地区的同一页，合并该批全部结果，避免截断后遗漏作品；最多每批 160 条地区记录，重复影视仅显示一次，已加载作品保持当前排序。`totalType=regional_sum` 表示 `total` 为成功查询地区的命中数合计，含重复，不是跨地区去重总数。`queriedRegions` / `failedRegions` 说明成功 / 失败片库；部分地区失败时显示提示，其他地区结果仍可浏览。
 
@@ -118,7 +118,7 @@ curl http://127.0.0.1:3210/api/health
 - `GET /api/discover?type=tv&platform=netflix&period=month&region=US&sort=rating&minVotes=10&page=1`：近期上映作品。
 - `GET /api/discover/providers?type=tv&region=US`：当前地区可用的主流平台。
 
-影视查询类型 `type` 支持 `tv/movie/anime/anime_movie/variety`；时间 `period` 支持 `month/30d/90d/180d/365d/3y/all/custom`。自定义示例：`/api/discover?type=anime&period=custom&from=2024-01-01&to=2025-12-31`。省略 `region` 和 `minVotes` 时，分别按 `all` 与 `0` 处理。
+影视查询类型 `type` 支持 `tv/movie/anime/anime_movie/variety`；时间 `period` 支持 `month/30d/90d/180d/365d/3y/all/custom`。自定义示例：`/api/discover?type=anime&period=custom&from=2024-01-01&to=2025-12-31`。省略 `region` 和 `minVotes` 时，分别按 `all` 与 `10` 处理。默认 10 人优先模式的响应包含 `next: {page, voteGroup}`（结束时为 `null`）；加载更多须原样传回这两个字段，确保先展示高人数评分组再展示不足 10 人组，不能只递增页码。
 
 `pan` 取值见 `frontend/shared.js`；`sources` 从 `/api/sources` 的已启用来源中选择。`sort` 支持 `latest`、`hot`，排序以各来源为准；公开页面与频道保持来源原始顺序。PanSou、起零数据、轻搜搜、小鸡窝和最近公开频道无分页能力，第一页聚合后不重复查询后续页。
 

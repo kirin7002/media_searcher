@@ -63,7 +63,7 @@
           <label>时间范围<select id="discover-period"><option value="month">本月已上映</option><option value="30d">最近 30 天</option><option value="90d">最近 90 天</option><option value="180d">最近半年</option><option value="365d">最近 1 年</option><option value="3y">最近 3 年</option><option value="all">全部时间</option><option value="custom">自定义日期</option></select></label>
           <label>排序<select id="discover-sort"><option value="rating">TMDb 评分从高到低</option><option value="rating_asc">TMDb 评分从低到高</option><option value="newest">上映时间从新到旧</option></select></label>
           <label>最低 TMDb 评分<select id="discover-rating"><option value="0">不限</option><option value="5">5 分以上</option><option value="6">6 分以上</option><option value="7">7 分以上</option><option value="8">8 分以上</option><option value="9">9 分以上</option></select></label>
-          <label>评分人数<select id="discover-votes"><option value="0">不限</option><option value="10">至少 10 人</option><option value="100">至少 100 人</option></select></label>
+          <label>评分人数<select id="discover-votes"><option value="0">不限</option><option value="10" selected>至少 10 人优先（不足的排后）</option><option value="100">至少 100 人</option></select></label>
           <div id="discover-custom-dates" class="custom-dates" hidden><label>开始日期<input type="date" id="discover-from"></label><label>结束日期<input type="date" id="discover-to"></label><button type="button" id="discover-apply-dates" class="secondary-button">应用日期</button></div>
         </form>
         <div class="platform-filter-label">流媒体平台</div><div id="streaming-platforms" class="streaming-platforms" role="group" aria-label="流媒体平台"></div>

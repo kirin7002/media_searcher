@@ -1,4 +1,4 @@
-export const CATALOG_DEFAULTS = Object.freeze({ type: 'tv', region: 'all', platform: 'all', period: 'month', sort: 'rating', minVotes: '0', minRating: '0' });
+export const CATALOG_DEFAULTS = Object.freeze({ type: 'tv', region: 'all', platform: 'all', period: 'month', sort: 'rating', minVotes: '10', minRating: '0' });
 const allowed = {
   type: ['tv', 'movie', 'anime', 'anime_movie', 'variety'], region: ['all', 'US', 'GB', 'JP', 'KR', 'HK', 'TW', 'CA', 'AU'],
   platform: ['all', 'netflix', 'hulu', 'prime', 'disney', 'max', 'apple', 'paramount', 'peacock'],
@@ -24,7 +24,11 @@ export function pageFromLocation(hash, search = '') {
   return ['home', 'search', 'discover', 'favorites', 'sources'].includes(name) ? name : new URLSearchParams(search).has('q') ? 'search' : 'home';
 }
 
-export function sortCatalogItems(items, sort) {
-  return items.sort((a, b) => sort === 'newest' ? (b.releaseDate || '').localeCompare(a.releaseDate || '')
-    : a.rating == null ? (b.rating == null ? 0 : 1) : b.rating == null ? -1 : sort === 'rating_asc' ? a.rating - b.rating : b.rating - a.rating);
+export function sortCatalogItems(items, sort, minVotes = '0') {
+  return items.sort((a, b) => {
+    const priority = minVotes === '10' ? Number(b.voteCount >= 10) - Number(a.voteCount >= 10) : 0;
+    if (priority) return priority;
+    return sort === 'newest' ? (b.releaseDate || '').localeCompare(a.releaseDate || '')
+      : a.rating == null ? (b.rating == null ? 0 : 1) : b.rating == null ? -1 : sort === 'rating_asc' ? a.rating - b.rating : b.rating - a.rating;
+  });
 }

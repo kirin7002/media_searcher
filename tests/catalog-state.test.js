@@ -33,3 +33,19 @@ test('direct platform links keep unrestricted region and merged batches remain s
   assert.deepEqual(sortCatalogItems([...items], 'rating_asc').map(item => item.id), ['a', 'c', 'b']);
   assert.deepEqual(sortCatalogItems([...items], 'newest').map(item => item.id), ['b', 'c', 'a']);
 });
+
+
+test('catalog defaults prefer ten votes and appending low-vote pages never promotes them', () => {
+  assert.equal(CATALOG_DEFAULTS.minVotes, '10');
+  assert.equal(parseCatalog('#discover').minVotes, '10');
+  assert.equal(parseCatalog(catalogHash({ ...CATALOG_DEFAULTS, minVotes: '0' })).minVotes, '0');
+  const items = [{ id: 'few', voteCount: 9, rating: 10, releaseDate: '2026-10-15' },
+    { id: 'enough', voteCount: 10, rating: 7, releaseDate: '2026-10-01' },
+    { id: 'none', voteCount: 0, rating: null, releaseDate: '2026-10-14' }];
+  for (const sort of ['rating', 'rating_asc', 'newest']) {
+    const sorted = sortCatalogItems([...items], sort, '10');
+    assert.equal(sorted[0].id, 'enough');
+    assert.equal(sorted.length, 3);
+  }
+  assert.equal(sortCatalogItems([...items], 'rating', '0')[0].id, 'few');
+});

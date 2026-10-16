@@ -115,12 +115,12 @@ export function createDiscoverService(config, fetchImpl = fetch, now = () => new
   const service = {
     config() { return { enabled, platforms: STREAMERS.map(({ match, ...p }) => p), regions: REGIONS, contentTypes: CONTENT_TYPES, periods: PERIODS, today: dateWindow('month', now(), config.discoverTimezone).to, ratingSource: 'TMDb' }; },
     async providers(params) { return { platforms: await providers(params), ...filters(params) }; },
-    async discover(params) {
+    async discover(params, { voteBand = null, strictVotes = false } = {}) {
       const { region, type, mediaType } = filters(params);
       const platform = params.get('platform') || 'all';
       const period = params.get('period') || 'month';
       const sort = params.get('sort') || 'rating';
-      const minVotes = params.get('minVotes') || '0';
+      const minVotes = params.get('minVotes') || '10';
       const minRating = params.get('minRating') || '0';
       const pageText = params.get('page') || '1';
       if (platform !== 'all' && !STREAMERS.some(p => p.id === platform)) throw new InputError('不支持的流媒体平台');
@@ -131,12 +131,34 @@ export function createDiscoverService(config, fetchImpl = fetch, now = () => new
       if (!/^\d+$/.test(pageText) || Number(pageText) < 1 || Number(pageText) > 50) throw new InputError('页码必须在 1–50 之间');
       const page = Number(pageText);
       const range = dateWindow(period, now(), config.discoverTimezone, { from: params.get('from'), to: params.get('to') });
+      // Keep the two vote bands separate across pages, including merged regional catalogs.
+      // The lower band remains reachable after the higher band reaches its page limit.
+      const voteGroup = params.get('voteGroup') || 'high';
+      if (!['high', 'low'].includes(voteGroup)) throw new InputError('不支持的评分人数组');
+      if (minVotes === '10' && !voteBand && !strictVotes) {
+        const first = new URLSearchParams(params); first.set('page', '1');
+        const [high, low] = await Promise.all([
+          service.discover(voteGroup === 'high' ? params : first, { voteBand: 'high' }),
+          service.discover(voteGroup === 'low' ? params : first, { voteBand: 'low' })
+        ]);
+        const group = voteGroup === 'high' && high.total > 0 ? 'high' : 'low';
+        const current = group === 'high' ? high : low;
+        const next = current.hasMore ? { page: current.page + 1, voteGroup: group }
+          : group === 'high' && low.total > 0 ? { page: 1, voteGroup: 'low' } : null;
+        const failedRegions = [...new Set([...(high.failedRegions || []), ...(low.failedRegions || [])])];
+        return {
+          ...current, total: high.total + low.total, hasMore: Boolean(next), next, voteGroup: group,
+          votePriority: 10, priorityTotal: high.total, lowerVoteTotal: low.total,
+          ...(failedRegions.length ? { partial: true, failedRegions,
+            reason: `${failedRegions.map(code => REGIONS[code]).join('、')}片库暂时无法加载，已保留其他地区的结果。` } : {})
+        };
+      }
       if (region === 'all' && platform !== 'all') {
         const regions = Object.keys(REGIONS).filter(code => code !== 'all');
         const results = await Promise.allSettled(regions.map(code => {
           const regional = new URLSearchParams(params);
           regional.set('region', code);
-          return service.discover(regional);
+          return service.discover(regional, { voteBand, strictVotes });
         }));
         if (results.every(result => result.status === 'rejected')) throw results[0].reason;
         const byId = new Map();
@@ -179,7 +201,8 @@ export function createDiscoverService(config, fetchImpl = fetch, now = () => new
         ...(category.genres ? { with_genres: category.genres.join('|') } : {}),
         include_adult: 'false', page,
         ...(range.from ? { [`${dateField}.gte`]: range.from } : {}), [`${dateField}.lte`]: range.to,
-        'vote_count.gte': minVotes, 'vote_average.gte': minRating,
+        'vote_count.gte': voteBand === 'low' ? '0' : minVotes,
+        ...(voteBand === 'low' ? { 'vote_count.lte': '9' } : {}), 'vote_average.gte': minRating,
         sort_by: sort === 'newest' ? `${dateField}.desc` : sort === 'rating_asc' ? 'vote_average.asc' : 'vote_average.desc'
       });
       if (!Number.isFinite(Number(data.total_results)) || !Number.isFinite(Number(data.total_pages))) throw new UpstreamError('TMDb 分页数据格式发生变化');
@@ -196,8 +219,8 @@ export function createDiscoverService(config, fetchImpl = fetch, now = () => new
         tmdb('trending/all/week', { language: 'zh-CN' }).then(data => data.results
           .filter(row => row && ['movie', 'tv'].includes(row.media_type) && Number.isSafeInteger(row.id) && row.id > 0 && row.adult !== true)
           .map(row => artwork(row, row.media_type)).filter(row => row.title && row.releaseDate && row.releaseDate <= today).slice(0, 12)),
-        service.discover(new URLSearchParams({ type: 'movie', period: '30d', sort: 'newest', minVotes: '10' })).then(data => data.items.slice(0, 6)),
-        service.discover(new URLSearchParams({ type: 'tv', period: '30d', sort: 'newest', minVotes: '10' })).then(data => data.items.slice(0, 6))
+        service.discover(new URLSearchParams({ type: 'movie', period: '30d', sort: 'newest', minVotes: '10' }), { strictVotes: true }).then(data => data.items.slice(0, 6)),
+        service.discover(new URLSearchParams({ type: 'tv', period: '30d', sort: 'newest', minVotes: '10' }), { strictVotes: true }).then(data => data.items.slice(0, 6))
       ]);
       if (results.every(result => result.status === 'rejected')) throw results[0].reason;
       const names = ['本周趋势', '近期电影', '近期新剧'];
