@@ -39,7 +39,8 @@ const sites = [
 
 function platformTabs() {
   const primary = ['all', 'quark', 'baidu', 'aliyun', 'xunlei'];
-  $('platform-tabs').innerHTML = primary.map(p => `<button type="button" data-platform="${p}" class="platform-tab ${state.platform === p ? 'selected' : ''}" aria-pressed="${state.platform === p}">${p === 'all' ? '全部网盘' : escape(PLATFORMS[p].short)}</button>`).join('') + `<label class="sr-only" for="more-platforms">更多网盘</label><select id="more-platforms" class="more-platforms ${!primary.includes(state.platform) ? 'selected' : ''}"><option value="all">更多网盘</option>${Object.entries(PLATFORMS).filter(([p]) => !primary.includes(p)).map(([p, details]) => `<option value="${p}" ${state.platform === p ? 'selected' : ''}>${escape(details.name)}</option>`).join('')}</select>`;
+  $('platform-tabs').innerHTML = primary.map(p => `<button type="button" data-platform="${p}" class="platform-tab ${state.platform === p ? 'selected' : ''}" aria-pressed="${state.platform === p}">${p === 'all' ? '全部网盘' : escape(PLATFORMS[p].short)}</button>`).join('');
+  $('more-platforms-wrap').innerHTML = `<label class="sr-only" for="more-platforms">更多网盘</label><select id="more-platforms" class="more-platforms ${!primary.includes(state.platform) ? 'selected' : ''}"><option value="all">更多网盘</option>${Object.entries(PLATFORMS).filter(([p]) => !primary.includes(p)).map(([p, details]) => `<option value="${p}" ${state.platform === p ? 'selected' : ''}>${escape(details.name)}</option>`).join('')}</select>`;
 }
 
 function sourceOptions() {
@@ -211,7 +212,7 @@ document.addEventListener('click', async event => {
 function clearMedia() { state.media = null; $('search-context').hidden = true; }
 $('search-form').addEventListener('submit', event => { event.preventDefault(); state.query = $('query').value.trim(); if (state.media && state.query !== state.media.title && state.query !== state.media.originalTitle) clearMedia(); search(); });
 $('header-search').addEventListener('submit', event => { event.preventDefault(); clearMedia(); state.query = $('header-query').value.trim(); $('query').value = state.query; updateUrl(); search({ url: false }); window.scrollTo({ top: 0 }); });
-$('platform-tabs').addEventListener('change', event => { if (event.target.id === 'more-platforms') { state.platform = event.target.value; platformTabs(); if (state.query) search(); } });
+$('more-platforms-wrap').addEventListener('change', event => { if (event.target.id === 'more-platforms') { state.platform = event.target.value; platformTabs(); if (state.query) search(); } });
 $('sort').addEventListener('change', event => { state.sort = event.target.value; if (state.query) search(); });
 $('source-options').addEventListener('change', event => {
   const selected = [...$('source-options').querySelectorAll('input:checked')].map(el => el.value);
