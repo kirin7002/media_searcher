@@ -30,7 +30,7 @@ export function createSearchService(providers, config) {
     sources() {
       return providers.map(({ id, name, website, description, enabled, disabledReason, supportsCheck, supportsPagination }) => ({ id, name, website, description, enabled, supportsCheck, supportsPagination: Boolean(supportsPagination), disabledReason: enabled ? null : disabledReason }));
     },
-    async search(params) {
+    async search(params, { onUpdate } = {}) {
       const query = (params.get('q') || '').trim();
       if (!query || [...query].length > 60) throw new InputError('请输入 1–60 个字符的搜索词');
       const platform = params.get('pan') || 'all';
@@ -45,7 +45,23 @@ export function createSearchService(providers, config) {
       const started = Date.now();
       const args = { query, platform, page, sort };
       const selected = available.filter(p => ids.includes(p.id));
-      const statuses = await Promise.all(selected.map(async provider => {
+      const statuses = selected.map(provider => ({ id: provider.id, name: provider.name, state: 'pending', total: 0, items: [], hasMore: false }));
+      const arrived = [];
+      function snapshot() {
+        const items = mergeItems(arrived.flatMap(s => s.items).filter(i => platform === 'all' || i.platform === platform));
+        const succeeded = arrived.filter(s => s.state === 'ok').length;
+        const done = arrived.length === selected.length;
+        return {
+          query, platform, page, sort, items, count: items.length,
+          sourceTotal: arrived.reduce((n, s) => n + s.total, 0),
+          hasMore: page < 50 && arrived.some(s => s.hasMore),
+          durationMs: Date.now() - started, done, completed: arrived.length, pending: selected.length - arrived.length,
+          partial: succeeded > 0 && arrived.some(s => s.state === 'error' || s.degraded || s.blocked),
+          failed: done && succeeded === 0,
+          sources: statuses.map(({ items: ignored, ...status }) => status)
+        };
+      }
+      async function resolveProvider(provider) {
         const key = JSON.stringify([provider.id, query, platform, page, sort]);
         const began = Date.now();
         try {
@@ -62,18 +78,14 @@ export function createSearchService(providers, config) {
         } catch (error) {
           return { id: provider.id, name: provider.name, state: 'error', cached: false, durationMs: Date.now() - began, message: error.name === 'UpstreamError' ? error.message : '来源暂时不可用', items: [], total: 0, hasMore: false };
         }
+      }
+      onUpdate?.(snapshot());
+      await Promise.all(selected.map(async (provider, index) => {
+        const status = await resolveProvider(provider);
+        statuses[index] = status; arrived.push(status);
+        onUpdate?.(snapshot());
       }));
-      const items = mergeItems(statuses.flatMap(s => s.items).filter(i => platform === 'all' || i.platform === platform));
-      const succeeded = statuses.filter(s => s.state === 'ok').length;
-      return {
-        query, platform, page, sort, items, count: items.length,
-        sourceTotal: statuses.reduce((n, s) => n + s.total, 0),
-        hasMore: page < 50 && statuses.some(s => s.hasMore),
-        durationMs: Date.now() - started,
-        partial: succeeded > 0 && (succeeded < selected.length || statuses.some(s => s.degraded)),
-        failed: succeeded === 0,
-        sources: statuses.map(({ items: ignored, ...status }) => status)
-      };
+      return snapshot();
     },
     async check(body) {
       const share = safeShareUrl(body.url);

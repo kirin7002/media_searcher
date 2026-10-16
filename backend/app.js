@@ -7,6 +7,7 @@ import { createDiscoverService } from './discover.js';
 
 const assets = {
   '/': ['index.html', 'text/html; charset=utf-8'],
+  '/search-stream.js': ['search-stream.js', 'text/javascript; charset=utf-8'],
   '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
   '/hero-swipe.js': ['hero-swipe.js', 'text/javascript; charset=utf-8'],
   '/discover.js': ['discover.js', 'text/javascript; charset=utf-8'],
@@ -55,7 +56,7 @@ export function createApp({ config = loadConfig(), fetchImpl = fetch, providers 
       if (url.pathname === '/api/health' && req.method === 'GET') return json(res, 200, { status: 'ok', version: '1.0.0', startedAt, enabledSources: service.sources().filter(s => s.enabled).map(s => s.id) });
       if (url.pathname === '/api/sources' && req.method === 'GET') return json(res, 200, { sources: service.sources(), checkingEnabled: service.sources().some(s => s.supportsCheck) });
       if (url.pathname === '/api/discover/config' && req.method === 'GET') return json(res, 200, discovery.config());
-      if (['/api/search', '/api/check', '/api/discover', '/api/discover/providers', '/api/discover/home'].includes(url.pathname)) {
+      if (['/api/search', '/api/search/stream', '/api/check', '/api/discover', '/api/discover/providers', '/api/discover/home'].includes(url.pathname)) {
         const method = url.pathname === '/api/check' ? 'POST' : 'GET';
         if (req.method !== method) return json(res, 405, { error: '请求方法不支持' }, { Allow: method });
         if (req.method === 'POST' && req.headers.origin && req.headers.origin !== `${req.socket.encrypted ? 'https' : 'http'}://${req.headers.host}` && new URL(req.headers.origin).host !== req.headers.host) throw new InputError('不接受跨站请求', 403);
@@ -69,6 +70,29 @@ export function createApp({ config = loadConfig(), fetchImpl = fetch, providers 
         } else {
           if (window.count >= config.rateLimit) return json(res, 429, { error: '请求较多，请一分钟后再试' }, { 'Retry-After': String(Math.ceil((window.expires - now) / 1000)) });
           window.count++;
+        }
+        if (url.pathname === '/api/search/stream') {
+          let heartbeat;
+          const send = value => {
+            if (res.destroyed || res.writableEnded) return;
+            if (!res.headersSent) {
+              res.writeHead(200, { ...headers, 'Content-Type': 'application/x-ndjson; charset=utf-8',
+                'Cache-Control': 'no-store, no-transform', 'X-Accel-Buffering': 'no' });
+              res.flushHeaders();
+              heartbeat = setInterval(() => { if (!res.destroyed) res.write('{"type":"ping"}\n'); }, 15000);
+              heartbeat.unref();
+            }
+            res.write(JSON.stringify(value) + '\n');
+          };
+          res.once('close', () => clearInterval(heartbeat));
+          try {
+            await service.search(url.searchParams, { onUpdate: data => send({ type: data.done ? 'done' : 'progress', ...data }) });
+            res.end();
+          } catch (error) {
+            if (!res.headersSent) throw error;
+            send({ type: 'error', error: '搜索连接中断，请重试。' }); res.end();
+          } finally { clearInterval(heartbeat); }
+          return;
         }
         if (url.pathname === '/api/search') {
           const result = await service.search(url.searchParams);

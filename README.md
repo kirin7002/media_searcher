@@ -110,6 +110,7 @@ curl http://127.0.0.1:3210/api/health
 
 - `GET /api/health`：服务健康状态，不代表上游来源可用。
 - `GET /api/sources`：来源配置状态，不返回凭据。
+- `GET /api/search/stream?q=Python&sources=pansearch,haisou`：按来源完成顺序返回 NDJSON，`progress` 为中间结果、`done` 为最终结果，等待期间可出现 `ping` 心跳。每帧含累计去重的 `items`、来源状态和剩余 `pending` 数；前端立即显示先返回的来源，慢来源随后追加。中断保留已有结果。
 - `GET /api/search?q=Python&pan=all&page=1&sort=latest&sources=pansousuo`：搜索。
 - `POST /api/check`：JSON 参数包含 `url` 与可选 `password`，需要配置检测来源。
 - `GET /api/discover/config`：影视数据配置状态、平台与地区列表，不返回 token。
@@ -120,7 +121,7 @@ curl http://127.0.0.1:3210/api/health
 
 影视查询类型 `type` 支持 `tv/movie/anime/anime_movie/variety`；时间 `period` 支持 `month/30d/90d/180d/365d/3y/all/custom`。自定义示例：`/api/discover?type=anime&period=custom&from=2024-01-01&to=2025-12-31`。省略 `region` 和 `minVotes` 时，分别按 `all` 与 `10` 处理。默认 10 人优先模式的响应包含 `next: {page, voteGroup}`（结束时为 `null`）；加载更多须原样传回这两个字段，确保先展示高人数评分组再展示不足 10 人组，不能只递增页码。
 
-`pan` 取值见 `frontend/shared.js`；`sources` 从 `/api/sources` 的已启用来源中选择。`sort` 支持 `latest`、`hot`，排序以各来源为准；公开页面与频道保持来源原始顺序。PanSou、起零数据、轻搜搜、小鸡窝和最近公开频道无分页能力，第一页聚合后不重复查询后续页。
+`pan` 取值见 `frontend/shared.js`；`sources` 从 `/api/sources` 的已启用来源中选择。`sort` 支持 `latest`、`hot`，排序以各来源为准；公开页面与频道保持来源原始顺序。海搜只查询第一页候选，按标题完整词匹配和相关性选取至多 12 个去重链接，不相关和超出数量的候选不再展示；其 `totalType=selected` 是筛选后的数量。PanSou、海搜、起零数据、轻搜搜、小鸡窝和最近公开频道无分页能力，第一页聚合后不重复查询后续页。
 
 响应包括 `items`、`sources`、`hasMore`、`partial` 和耗时。结果数为当前返回页去重后的链接数量，`sourceTotal` 是来源自报命中数量之和，不是全网去重总数。
 

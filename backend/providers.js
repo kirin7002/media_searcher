@@ -1,4 +1,4 @@
-import { safeShareUrl } from '../frontend/shared.js';
+import { safeShareUrl, mergeItems } from '../frontend/shared.js';
 import { createXiaojiwo } from './xiaojiwo.js';
 import { createLightsearch } from './stream-source.js';
 import { createPublicProviders } from './public-sources.js';
@@ -70,6 +70,22 @@ export async function requestText(fetchImpl, url, options, timeout) {
   return requestBody(fetchImpl, url, { ...options, headers: { Accept: 'text/html', ...options?.headers } }, timeout);
 }
 
+// Rank literal title matches only; unrelated records never enter the retained shortlist.
+export function relevantHaisouItems(items, query, limit = 12) {
+  const compact = value => value.normalize('NFKC').toLocaleLowerCase('en-US').replace(/[^\p{L}\p{N}+#]/gu, '');
+  const phrase = compact(query);
+  const terms = query.normalize('NFKC').toLocaleLowerCase('en-US').match(/[\p{L}\p{N}+#]+/gu) || [];
+  if (!phrase || !terms.length) return [];
+  const ranked = items.map((item, index) => {
+    const title = compact(item.title);
+    const matches = terms.every(term => title.includes(compact(term)));
+    const score = title === phrase ? 3 : title.startsWith(phrase) ? 2 : title.includes(phrase) ? 1 : 0;
+    return { item, index, matches, score, extra: Math.max(0, title.length - phrase.length) };
+  }).filter(row => row.matches).sort((a, b) => b.score - a.score || a.extra - b.extra || a.index - b.index)
+    .map(row => row.item);
+  return mergeItems(ranked).slice(0, limit);
+}
+
 export function createProviders(config, fetchImpl = fetch) {
   const pansousuo = {
     id: 'pansousuo', name: '盘搜索', enabled: true, website: 'https://www.pansousuo.com/',
@@ -109,14 +125,15 @@ export function createProviders(config, fetchImpl = fetch) {
   };
   const haisou = {
     id: 'haisou', name: '海搜', enabled: Boolean(config.haisouApiKey), website: 'https://haisou.cc/',
-    description: '按站方额度调用，可返回分享链接与提取码并检测有效性。', disabledReason: '尚未配置海搜 API key', supportsCheck: Boolean(config.haisouApiKey), supportsPagination: true,
+    description: '保留标题相关性最高的至多 12 个分享，可检测有效性。', disabledReason: '尚未配置海搜 API key', supportsCheck: Boolean(config.haisouApiKey), supportsPagination: false,
     async search({ query, platform, page }) {
       const platformAlias = { aliyun: 'ali', mobile: 'yidong' };
       const supported = ['all', 'aliyun', 'baidu', 'quark', 'xunlei', 'tianyi', 'mobile', '115', '123', 'uc'];
-      if (!supported.includes(platform)) return { items: [], total: 0, hasMore: false };
+      if (page > 1 || !supported.includes(platform)) return { items: [], total: 0, hasMore: false };
       const data = await haisouRequest('search', { query, page, pageSize: 30, searchIn: 'title', ...(platform !== 'all' ? { platforms: [platformAlias[platform] || platform] } : {}) });
       if (!Array.isArray(data.items) || !data.pagination) throw new UpstreamError('海搜数据格式发生变化');
-      return { items: data.items.map(r => normalizeItem(r, haisou)).filter(Boolean), total: Number(data.pagination.total) || 0, hasMore: page < Number(data.pagination.totalPages || 1) };
+      const items = relevantHaisouItems(data.items.map(r => normalizeItem(r, haisou)).filter(Boolean), query);
+      return { items, total: items.length, totalType: 'selected', hasMore: false, note: '仅保留相关性最高的至多 12 条' };
     },
     async check(url, password) {
       const data = await haisouRequest('validate', { url, pwd: password });

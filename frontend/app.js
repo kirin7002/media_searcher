@@ -1,6 +1,7 @@
 import { PLATFORMS, safeShareUrl, mergeItems } from './shared.js';
 import { initDiscovery } from './discover.js';
 import { pageFromLocation } from './catalog-state.js';
+import { readSearchStream } from './search-stream.js';
 
 const $ = id => document.getElementById(id);
 const icons = {
@@ -26,7 +27,7 @@ const readStored = (key, fallback) => { try { return JSON.parse(localStorage.get
 const writeStored = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { toast('浏览器未允许保存本地数据'); } };
 const initialFavorites = readStored('panmi:favorites', []);
 const favorites = new Map((Array.isArray(initialFavorites) ? initialFavorites : []).filter(item => item && safeShareUrl(item.url) && typeof item.title === 'string' && Array.isArray(item.sources)).map(item => [item.id, item]));
-const state = { view: 'home', query: '', platform: 'all', sort: 'latest', page: 1, items: [], providers: [], selected: [], checkingEnabled: false, hasMore: false, busy: false, controller: null, urlKey: location.search, media: null };
+const state = { view: 'home', query: '', platform: 'all', sort: 'latest', page: 1, items: [], providers: [], selected: [], checkingEnabled: false, hasMore: false, busy: false, retryAppend: false, controller: null, urlKey: location.search, media: null };
 const labels = { unchecked: '未检测', valid: '链接有效', invalid: '链接失效', locked: '需要提取码', unknown: '未确认', checking: '检测中' };
 let toastTimer;
 function toast(message) { $('toast').textContent = message; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('toast').hidden = true; }, 2500); }
@@ -120,7 +121,7 @@ async function search({ append = false, url = true } = {}) {
   state.controller?.abort();
   const controller = new AbortController();
   state.controller = controller;
-  state.busy = true;
+  state.busy = true; state.retryAppend = append;
   const page = append ? state.page + 1 : 1;
   if (!append) { state.page = 1; state.items = []; state.hasMore = false; }
   if (url && !append) updateUrl();
@@ -136,25 +137,31 @@ async function search({ append = false, url = true } = {}) {
   }
   try {
     const params = new URLSearchParams({ q: state.query, pan: state.platform, sort: state.sort, page: String(page), sources: state.selected.join(',') });
-    const response = await fetch(`/api/search?${params}`, { signal: controller.signal });
-    const data = await response.json();
-    if (controller !== state.controller) return;
-    if (!Array.isArray(data.items)) throw new Error(data.error || '搜索失败，请稍后重试');
-    showStatuses(data);
-    if (data.failed) {
-      if (!append) $('results').innerHTML = empty('globe', '暂时无法连接搜索来源', '可以稍后重试，或在搜索来源页直接访问网站。');
-      $('results-summary').textContent = append ? `已保留 ${state.items.length} 个链接，本页加载失败` : '搜索失败，请重试。';
-      return;
-    }
-    state.items = mergeItems(append ? [...state.items, ...data.items] : data.items);
-    state.page = page; state.hasMore = data.hasMore;
-    renderResults();
-    $('results-summary').textContent = `已显示 ${state.items.length} 个链接 · ${(data.durationMs / 1000).toFixed(1)} 秒`;
+    const response = await fetch(`/api/search/stream?${params}`, { signal: controller.signal });
+    await readSearchStream(response, data => {
+      if (controller !== state.controller) return;
+      state.items = mergeItems([...state.items, ...data.items]);
+      state.hasMore = data.hasMore;
+      if (state.items.length || data.done) renderResults();
+      if (data.done) {
+        showStatuses(data);
+        if (data.failed) {
+          if (!append) $('results').innerHTML = empty('globe', '搜索来源暂不可用', '请稍后重试。');
+          $('results-summary').textContent = append ? `已保留 ${state.items.length} 个链接，本页加载失败` : '搜索失败，请重试。';
+          return;
+        }
+        state.page = page;
+      }
+      $('results-summary').textContent = data.done
+        ? `已显示 ${state.items.length} 个链接 · ${(data.durationMs / 1000).toFixed(1)} 秒`
+        : state.items.length ? `已显示 ${state.items.length} 个链接 · 仍在搜索 ${data.pending} 个来源…`
+          : `搜索中 · 剩余 ${data.pending} 个来源…`;
+    });
   } catch (error) {
     if (error.name === 'AbortError' || controller !== state.controller) return;
     $('search-notices').innerHTML = `<div class="error-banner">${escape(error.message)}<button id="retry-search">重试搜索</button></div>`;
-    $('results-summary').textContent = '查询未成功，请检查服务连接后重试。';
-    if (!append) $('results').innerHTML = empty('globe', '搜索遇到了一点问题', '请稍后重试。已有收藏仍然可以查看。');
+    $('results-summary').textContent = state.items.length ? `已保留 ${state.items.length} 个链接，部分来源未完成。` : '搜索未完成，请重试。';
+    if (!state.items.length) $('results').innerHTML = empty('globe', '搜索遇到了一点问题', '请稍后重试。已有收藏仍然可以查看。');
   } finally {
     if (controller === state.controller) {
       state.busy = false;
@@ -177,7 +184,7 @@ async function copy(value) {
 document.addEventListener('click', async event => {
   const platformButton = event.target.closest('[data-platform]');
   if (platformButton) { state.platform = platformButton.dataset.platform; platformTabs(); if (state.query) search(); }
-  if (event.target.closest('#retry-search')) search({ append: state.items.length > 0 });
+  if (event.target.closest('#retry-search')) search({ append: state.retryAppend });
   const button = event.target.closest('[data-action]');
   if (!button) return;
   const item = state.items.find(i => i.id === button.dataset.id) || favorites.get(button.dataset.id);
