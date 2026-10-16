@@ -49,3 +49,10 @@
 
 /* Keep catalog controls close to the compact page label. */
 #discover-view .catalog-types{margin-top:20px}
+
+/* Keep search controls compact; source configuration and diagnostics are optional. */
+#search-view .search-box{margin-top:12px;margin-bottom:18px}
+.search-options,.source-status{color:var(--muted);font-size:12px}
+.search-options>summary,.source-status>summary{min-height:44px;display:list-item;align-content:center;width:fit-content}
+.search-options .source-picker{padding:8px 0 16px}
+.source-status{margin-bottom:12px}

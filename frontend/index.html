@@ -40,14 +40,13 @@
       </section>
       <section id="search-view" hidden>
         <a id="search-back" class="back-link" href="#home">← 返回发现</a>
-        <div class="hero"><div class="eyebrow"><span class="tiny-line"></span>寻找，从这里开始</div><h1>好资源，<span>不必四处找。</span></h1><p>电影、书籍、课程、资料……把分散的网盘资源，放进同一个搜索框。</p></div>
+        <h1 class="sr-only">网盘搜索</h1>
         <form id="search-form" class="search-box" role="search"><span data-icon="search"></span><label class="sr-only" for="query">资源关键词</label><input id="query" name="q" maxlength="60" placeholder="输入资源名称或关键词" autocomplete="off" required><button class="primary-button" type="submit">搜索资源<span data-icon="arrow"></span></button></form>
         <div id="search-context" class="search-context" hidden></div>
-        <div class="suggestions"><span id="suggestion-label">试着搜</span><div id="suggestion-list"></div></div>
         <div class="filters"><div class="platform-tabs" id="platform-tabs" role="group" aria-label="筛选网盘类型"></div><div class="sort-wrap"><label class="sr-only" for="sort">排序方式</label><select id="sort"><option value="latest">最新收录</option><option value="hot">来源热度</option></select></div></div>
-        <div class="source-picker"><span>搜索来源</span><div id="source-options"></div><a href="#sources">管理来源<span>↗</span></a></div>
+        <details class="search-options"><summary>搜索来源</summary><div class="source-picker"><div id="source-options"></div><a href="#sources">管理来源<span>↗</span></a></div></details>
         <div id="search-notices" aria-live="polite"></div>
-        <div class="results-heading"><div><h2 id="results-title">从一个关键词开始</h2><p id="results-summary">搜索公开分享链接，找到后直接打开网盘。</p></div><span class="subtle-pill"><span data-icon="link"></span>保留原始分享链接</span></div>
+        <div id="search-results-heading" class="results-heading" hidden><div><h2 id="results-title">搜索结果</h2><p id="results-summary"></p></div></div>
         <div id="results" class="result-grid" aria-live="polite" aria-busy="false"></div>
         <div class="load-more-wrap"><button id="load-more" class="secondary-button" hidden>加载更多结果<span>↓</span></button></div>
       </section>

@@ -50,13 +50,6 @@ function renderDirectories() {
   $('site-directory').innerHTML = sites.map(p => `<article class="source-card"><div class="source-card-head"><span class="directory-icon light">${icon('globe')}</span><span class="badge neutral">${p.tag}</span></div><h3>${p.name}</h3><p>${p.description}</p><div class="source-card-bottom"><span>${new URL(p.website).hostname}</span><a href="${p.website}" target="_blank" rel="noopener noreferrer" aria-label="访问${p.name}">↗</a></div></article>`).join('');
 }
 
-function suggestions() {
-  const history = readStored('panmi:history', []);
-  const words = Array.isArray(history) && history.some(s => typeof s === 'string') ? history.filter(s => typeof s === 'string').slice(0, 5) : ['Python', '摄影教程', '公开课', '电子书'];
-  $('suggestion-label').textContent = Array.isArray(history) && history.length ? '最近搜索' : '试着搜';
-  $('suggestion-list').innerHTML = words.map(q => `<button type="button" data-query="${escape(q)}">${escape(q)}<span>↗</span></button>`).join('');
-}
-
 function card(item) {
   const platform = PLATFORMS[item.platform] || { name: '网盘', letter: '盘', color: 'blue' };
   const saved = favorites.has(item.id);
@@ -71,7 +64,8 @@ function empty(iconName, title, description) {
 }
 
 function renderResults() {
-  $('results').innerHTML = state.items.length ? state.items.map(card).join('') : empty('search', state.query ? '没有找到匹配的链接' : '你想找什么？', state.query ? '试试更短的关键词，或切换网盘和搜索来源。' : '输入关键词搜索，也可以从上面的推荐词开始。');
+  $('search-results-heading').hidden = !state.query;
+  $('results').innerHTML = !state.query ? '' : state.items.length ? state.items.map(card).join('') : empty('search', '没有找到匹配的链接', '换个关键词或搜索来源试试。');
   $('load-more').hidden = !state.hasMore;
   $('load-more').disabled = state.busy;
   $('favorite-count').textContent = favorites.size;
@@ -112,7 +106,12 @@ function updateUrl() {
 }
 
 function showStatuses(data) {
-  $('search-notices').innerHTML = data.sources.map(source => `<span class="source-response ${source.state === 'error' || source.degraded ? 'error' : ''}"><span class="status-dot ${source.state === 'error' || source.degraded ? 'warning' : 'connected'}"></span>${escape(source.name)} · ${source.state === 'error' ? escape(source.message) : source.blocked ? '来源限制了该关键词' : `${source.total} ${source.totalType === 'page' ? '个本页链接' : '条记录'}${source.cached ? ' · 缓存' : ''}${source.note ? ' · ' + escape(source.note) : ''}`}</span>`).join('') + (data.failed ? '<div class="error-banner">搜索来源暂时不可用。<button id="retry-search">重试搜索</button></div>' : data.partial ? '<div class="partial-note">部分来源结果未能完整读取，已保留成功取得的链接。</div>' : '');
+  const issues = data.failed || data.partial || data.sources.some(source => source.state === 'error' || source.degraded || source.blocked);
+  if (!issues) { $('search-notices').textContent = ''; return; }
+  const details = data.sources.map(source => `<span class="source-response ${source.state === 'error' || source.degraded ? 'error' : ''}">${escape(source.name)} · ${source.state === 'error' ? escape(source.message) : source.blocked ? '关键词受限' : `${source.total} 条记录${source.note ? ' · ' + escape(source.note) : ''}`}</span>`).join('');
+  const message = data.failed ? '<div class="error-banner">搜索来源暂不可用。<button id="retry-search">重试</button></div>'
+    : '<div class="partial-note">部分来源暂不可用，已保留可用结果。</div>';
+  $('search-notices').innerHTML = message + `<details class="source-status"><summary>来源详情</summary>${details}</details>`;
 }
 
 async function search({ append = false, url = true } = {}) {
@@ -126,8 +125,9 @@ async function search({ append = false, url = true } = {}) {
   if (!append) { state.page = 1; state.items = []; state.hasMore = false; }
   if (url && !append) updateUrl();
   $('results').setAttribute('aria-busy', 'true');
-  $('results-title').textContent = `“${state.query}” 的搜索结果`;
-  $('results-summary').textContent = '正在查询所选来源…';
+  $('search-results-heading').hidden = false;
+  $('results-title').textContent = '搜索结果';
+  $('results-summary').textContent = '搜索中…';
   $('load-more').disabled = true;
   if (!append) {
     $('search-notices').textContent = '';
@@ -143,16 +143,13 @@ async function search({ append = false, url = true } = {}) {
     showStatuses(data);
     if (data.failed) {
       if (!append) $('results').innerHTML = empty('globe', '暂时无法连接搜索来源', '可以稍后重试，或在搜索来源页直接访问网站。');
-      $('results-summary').textContent = append ? `已保留 ${state.items.length} 个链接，本页加载失败` : '此次查询未成功，页面未使用演示数据。';
+      $('results-summary').textContent = append ? `已保留 ${state.items.length} 个链接，本页加载失败` : '搜索失败，请重试。';
       return;
     }
     state.items = mergeItems(append ? [...state.items, ...data.items] : data.items);
     state.page = page; state.hasMore = data.hasMore;
     renderResults();
-    $('results-summary').textContent = `已显示 ${state.items.length} 个去重链接 · 来源命中 ${data.sourceTotal} 条 · ${(data.durationMs / 1000).toFixed(1)} 秒`;
-    const previous = readStored('panmi:history', []);
-    writeStored('panmi:history', [state.query, ...(Array.isArray(previous) ? previous.filter(q => q !== state.query && typeof q === 'string') : [])].slice(0, 5));
-    suggestions();
+    $('results-summary').textContent = `已显示 ${state.items.length} 个链接 · ${(data.durationMs / 1000).toFixed(1)} 秒`;
   } catch (error) {
     if (error.name === 'AbortError' || controller !== state.controller) return;
     $('search-notices').innerHTML = `<div class="error-banner">${escape(error.message)}<button id="retry-search">重试搜索</button></div>`;
@@ -178,8 +175,6 @@ async function copy(value) {
 }
 
 document.addEventListener('click', async event => {
-  const queryButton = event.target.closest('[data-query]');
-  if (queryButton) { clearMedia(); $('query').value = queryButton.dataset.query; state.query = queryButton.dataset.query; search(); }
   const platformButton = event.target.closest('[data-platform]');
   if (platformButton) { state.platform = platformButton.dataset.platform; platformTabs(); if (state.query) search(); }
   if (event.target.closest('#retry-search')) search({ append: state.items.length > 0 });
@@ -231,8 +226,8 @@ addEventListener('popstate', () => {
     else {
       state.controller?.abort(); state.items = []; state.hasMore = false; state.busy = false;
       $('results').setAttribute('aria-busy', 'false'); $('search-notices').textContent = '';
-      $('results-title').textContent = '从一个关键词开始';
-      $('results-summary').textContent = '搜索公开分享链接，找到后直接打开网盘。';
+      $('results-title').textContent = '搜索结果';
+      $('results-summary').textContent = '';
       renderResults();
     }
   }
@@ -253,7 +248,7 @@ function restoreUrl() {
 }
 
 async function initialize() {
-  platformTabs(); suggestions(); renderResults(); renderFavorites(); setView();
+  platformTabs(); renderResults(); renderFavorites(); setView();
   try {
     const response = await fetch('/api/sources');
     if (!response.ok) throw new Error();
@@ -274,7 +269,7 @@ initialize().then(() => initDiscovery({
     const origin = location.hash || '#home';
     $('search-back').href = origin;
     $('search-back').textContent = origin.startsWith('#discover') ? '← 返回片库' : '← 返回发现';
-    $('search-context').innerHTML = `${item.posterUrl ? `<img src="${escape(item.posterUrl)}" alt="" width="52" height="78">` : ''}<div><strong>${escape(item.title)}</strong><p>${escape(item.originalTitle)} · ${escape(item.categoryName)}</p><p>${escape(item.overview || '暂无简介')}</p></div>${item.originalTitle !== item.title ? '<button type="button" class="secondary-button" id="context-original">用原名搜索</button>' : ''}`;
+    $('search-context').innerHTML = `${item.posterUrl ? `<img src="${escape(item.posterUrl)}" alt="" width="52" height="78">` : ''}<div><strong>${escape(item.title)}</strong><p>${escape(item.originalTitle)} · ${escape(item.categoryName)}</p></div>${item.originalTitle !== item.title ? '<button type="button" class="secondary-button" id="context-original">用原名搜索</button>' : ''}`;
     $('search-context').hidden = false;
     $('context-original')?.addEventListener('click', () => { state.query = [...item.originalTitle].slice(0, 60).join(''); $('query').value = state.query; search(); });
     state.query = [...title].slice(0, 60).join('');
